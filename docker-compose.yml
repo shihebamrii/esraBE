@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # التطبيق الرئيسي
+  app:
+    build: .
+    container_name: mediatheque-api
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - MONGO_URI=mongodb://mongo:27017/mediatheque
+      - JWT_SECRET=${JWT_SECRET:-dev-jwt-secret-change-in-production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev-refresh-secret-change-in-production}
+      - PAYMENT_PROVIDER=mock
+      - GRIDFS_BUCKET_NAME=mediaFiles
+    depends_on:
+      - mongo
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - mediatheque-network
+
+  # MongoDB
+  mongo:
+    image: mongo:7
+    container_name: mediatheque-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+    networks:
+      - mediatheque-network
+
+  # Mongo Express (واجهة ويب للداتابيز)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mediatheque-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin123
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    networks:
+      - mediatheque-network
+
+  # Redis (اختياري - للـ background jobs)
+  redis:
+    image: redis:7-alpine
+    container_name: mediatheque-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - mediatheque-network
+    profiles:
+      - with-redis
+
+volumes:
+  mongo-data:
+  redis-data:
+
+networks:
+  mediatheque-network:
+    driver: bridge

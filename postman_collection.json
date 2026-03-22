@@ -1,0 +1,388 @@
+{
+  "info": {
+    "name": "Médiathèque API",
+    "description": "Backend API for Tunisian media platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Test123!\",\n  \"locale\": \"ar\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@mediatheque.tn\",\n  \"password\": \"Admin123!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/refresh-token",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your-refresh-token\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contents",
+      "item": [
+        {
+          "name": "List Contents",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/contents?page=1&limit=10&type=video",
+              "host": ["{{baseUrl}}"],
+              "path": ["contents"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "10"},
+                {"key": "type", "value": "video"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Content",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/contents/{{contentId}}"
+          }
+        },
+        {
+          "name": "Stream Media",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/media/{{fileId}}",
+            "header": [
+              {"key": "Range", "value": "bytes=0-1024"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Photos",
+      "item": [
+        {
+          "name": "List Photos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/photos?page=1&limit=20&governorate=توزر",
+              "host": ["{{baseUrl}}"],
+              "path": ["photos"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "governorate", "value": "توزر"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Photo",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/photos/{{photoId}}"
+          }
+        },
+        {
+          "name": "Get Preview (Watermarked)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/photos/{{photoId}}/preview"
+          }
+        },
+        {
+          "name": "List Packs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/photos/packs"
+          }
+        },
+        {
+          "name": "Get Governorates",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/photos/governorates"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cart",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        },
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cart",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"photo\",\n  \"itemId\": \"{{photoId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cart",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Checkout",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/checkout",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"billingInfo\": {\n    \"name\": \"Test User\",\n    \"email\": \"test@example.com\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkout/orders",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkout/orders/{{orderId}}",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search All",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?q=توزر",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [{"key": "q", "value": "توزر"}]
+            }
+          }
+        },
+        {
+          "name": "Search Suggestions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search/suggest?q=صح",
+              "host": ["{{baseUrl}}"],
+              "path": ["search", "suggest"],
+              "query": [{"key": "q", "value": "صح"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Upload Content",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/content/upload",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": ""},
+                {"key": "thumbnail", "type": "file", "src": ""},
+                {"key": "title", "value": "Test Video", "type": "text"},
+                {"key": "type", "value": "video", "type": "text"},
+                {"key": "description", "value": "Test description", "type": "text"},
+                {"key": "region", "value": "تونس", "type": "text"},
+                {"key": "rights", "value": "free", "type": "text"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload Photo",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/photos/upload",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "highRes", "type": "file", "src": ""},
+                {"key": "title", "value": "Test Photo", "type": "text"},
+                {"key": "governorate", "value": "توزر", "type": "text"},
+                {"key": "landscapeType", "value": "desert", "type": "text"},
+                {"key": "priceTND", "value": "25", "type": "text"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Pack",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/packs",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Pack\",\n  \"description\": \"A test photo pack\",\n  \"photoIds\": [\"id1\", \"id2\"],\n  \"priceTND\": 50,\n  \"regionTag\": \"south\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Content (Admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/content",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment",
+      "item": [
+        {
+          "name": "Mock Complete Payment",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/payment/mock-complete?sessionId=test&orderId={{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment", "mock-complete"],
+              "query": [
+                {"key": "sessionId", "value": "test"},
+                {"key": "orderId", "value": "{{orderId}}"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check Payment Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/payment/status/{{orderId}}",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

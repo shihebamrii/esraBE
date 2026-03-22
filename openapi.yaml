@@ -1,0 +1,642 @@
+openapi: 3.0.3
+info:
+  title: Médiathèque API
+  description: |
+    Backend API for a Tunisian media platform with two main sections:
+    - **Contenus à impact**: Videos, podcasts, reels, documentaries
+    - **Tounesna**: Tourism photo gallery with watermarked previews
+  version: 1.0.0
+  contact:
+    name: CnBees Team
+    email: contact@mediatheque.tn
+
+servers:
+  - url: http://localhost:5000/api
+    description: Development server
+  - url: https://api.mediatheque.tn/api
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Contents
+    description: Video, audio, documentary content
+  - name: Photos
+    description: Tounesna photo gallery
+  - name: Cart
+    description: Shopping cart operations
+  - name: Checkout
+    description: Order and payment
+  - name: Admin
+    description: Admin content management
+  - name: Search
+    description: Search functionality
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                phone:
+                  type: string
+                locale:
+                  type: string
+                  enum: [ar, fr, en]
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /contents:
+    get:
+      tags: [Contents]
+      summary: List contents with filters
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [video, audio, reel, documentary]
+        - name: region
+          in: query
+          schema:
+            type: string
+        - name: rights
+          in: query
+          schema:
+            type: string
+            enum: [free, paid, license]
+        - name: freeOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of contents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentList'
+
+  /contents/{id}:
+    get:
+      tags: [Contents]
+      summary: Get content by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Content details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Content'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /media/{fileId}:
+    get:
+      tags: [Contents]
+      summary: Stream media file
+      description: Supports HTTP Range requests for video/audio streaming
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Range
+          in: header
+          schema:
+            type: string
+          example: bytes=0-1024
+      responses:
+        '200':
+          description: Full file content
+        '206':
+          description: Partial content (Range request)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /photos:
+    get:
+      tags: [Photos]
+      summary: List photos with filters
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: governorate
+          in: query
+          schema:
+            type: string
+        - name: landscapeType
+          in: query
+          schema:
+            type: string
+            enum: [sea, desert, mountain, village, oasis, forest, city, historical, other]
+      responses:
+        '200':
+          description: List of photos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoList'
+
+  /photos/{id}:
+    get:
+      tags: [Photos]
+      summary: Get photo by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Photo details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Photo'
+
+  /photos/{id}/preview:
+    get:
+      tags: [Photos]
+      summary: Get watermarked low-res preview
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+
+  /photos/packs:
+    get:
+      tags: [Photos]
+      summary: List photo packs
+      responses:
+        '200':
+          description: List of packs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackList'
+
+  /cart:
+    get:
+      tags: [Cart]
+      summary: Get current cart
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cart contents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+    post:
+      tags: [Cart]
+      summary: Add item to cart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, itemId]
+              properties:
+                type:
+                  type: string
+                  enum: [photo, pack, content]
+                itemId:
+                  type: string
+      responses:
+        '200':
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /checkout:
+    post:
+      tags: [Checkout]
+      summary: Create order from cart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [billingInfo]
+              properties:
+                billingInfo:
+                  type: object
+                  required: [name, email]
+                  properties:
+                    name:
+                      type: string
+                    email:
+                      type: string
+                      format: email
+                    address:
+                      type: string
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: '#/components/schemas/Order'
+                  payment:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+
+  /search:
+    get:
+      tags: [Search]
+      summary: Search content, photos, and packs
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [content, photo, pack]
+      responses:
+        '200':
+          description: Search results
+
+  /admin/content/upload:
+    post:
+      tags: [Admin]
+      summary: Upload new content
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, title, type]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                thumbnail:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                type:
+                  type: string
+                  enum: [video, audio, reel, documentary]
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Content uploaded
+
+  /admin/photos/upload:
+    post:
+      tags: [Admin]
+      summary: Upload new photo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [highRes, title, governorate, landscapeType, priceTND]
+              properties:
+                highRes:
+                  type: string
+                  format: binary
+                lowRes:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                governorate:
+                  type: string
+                landscapeType:
+                  type: string
+                priceTND:
+                  type: number
+      responses:
+        '201':
+          description: Photo uploaded
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+    NotFound:
+      description: Resource not found
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, uploader, user]
+        locale:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+
+    Content:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        duration:
+          type: number
+        rights:
+          type: string
+        price:
+          type: number
+        thumbnailUrl:
+          type: string
+        contentUrl:
+          type: string
+
+    ContentList:
+      type: object
+      properties:
+        status:
+          type: string
+        results:
+          type: integer
+        total:
+          type: integer
+        data:
+          type: object
+          properties:
+            contents:
+              type: array
+              items:
+                $ref: '#/components/schemas/Content'
+
+    Photo:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        governorate:
+          type: string
+        landscapeType:
+          type: string
+        priceTND:
+          type: number
+        previewUrl:
+          type: string
+
+    PhotoList:
+      type: object
+      properties:
+        status:
+          type: string
+        results:
+          type: integer
+        total:
+          type: integer
+        data:
+          type: object
+          properties:
+            photos:
+              type: array
+              items:
+                $ref: '#/components/schemas/Photo'
+
+    Pack:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        priceTND:
+          type: number
+        photoCount:
+          type: integer
+
+    PackList:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            packs:
+              type: array
+              items:
+                $ref: '#/components/schemas/Pack'
+
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              itemId:
+                type: string
+              price:
+                type: number
+              title:
+                type: string
+        total:
+          type: number
+        itemCount:
+          type: integer
+
+    Order:
+      type: object
+      properties:
+        _id:
+          type: string
+        total:
+          type: number
+        currency:
+          type: string
+        paymentStatus:
+          type: string
+          enum: [pending, paid, failed, refunded]
+        createdAt:
+          type: string
+          format: date-time
