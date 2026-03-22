@@ -41,6 +41,8 @@ const userPackSchema = new mongoose.Schema(
       reelsRemaining: { type: Number, default: 0 },
       videosRemaining: { type: Number, default: 0 },
       documentariesRemaining: { type: Number, default: 0 },
+      podcastsRemaining: { type: Number, default: 0 },
+      successStoryRemaining: { type: Number, default: 0 },
     },
 
     // الجودة المسموحة

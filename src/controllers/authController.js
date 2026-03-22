@@ -66,6 +66,8 @@ const register = asyncHandler(async (req, res, _next) => {
           reelsRemaining: welcomePack.membershipFeatures.reelsLimit || 0,
           videosRemaining: welcomePack.membershipFeatures.videosLimit || 1,
           documentariesRemaining: welcomePack.membershipFeatures.documentariesLimit || 0,
+          podcastsRemaining: welcomePack.membershipFeatures.podcastsLimit || 0,
+          successStoryRemaining: welcomePack.membershipFeatures.successStoryLimit || 0,
         },
         quality: welcomePack.membershipFeatures.quality,
         isActive: true,

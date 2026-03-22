@@ -21,7 +21,7 @@ const seedPacks = async () => {
       // TOUNESNA PACKS
       {
         title: 'Tounesna Silver',
-        description: 'Pack Silver for Tounesna',
+        description: 'Ideal for small projects. Includes 15 professional photos of tourist sites, 3 reels, and 1 short presentation video. Standard quality access.',
         type: 'membership',
         priceTND: 49,
         membershipFeatures: {
@@ -35,7 +35,7 @@ const seedPacks = async () => {
       },
       {
         title: 'Tounesna Gold',
-        description: 'Pack Gold for Tounesna',
+        description: 'Most preferred choice. 30 professional photos, 8 reels, 3 presentation videos (village, landscape, activity), and 1 mini-reportage (2-3 min). HD quality access.',
         type: 'membership',
         priceTND: 199,
         membershipFeatures: {
@@ -50,7 +50,7 @@ const seedPacks = async () => {
       },
       {
         title: 'Tounesna Premium',
-        description: 'Pack Premium for Tounesna',
+        description: 'Complete digital heritage collection. 60 photos, 15 reels, 5 professional videos, 2 mini-reportages, and 1 cinematic promotion video. HD + Exclusive access.',
         type: 'membership',
         priceTND: 499,
         membershipFeatures: {
@@ -66,12 +66,13 @@ const seedPacks = async () => {
       // IMPACT PACKS
       {
         title: 'Impact Silver',
-        description: 'Pack Silver for Impact',
+        description: 'Basic impact storytelling. 3 reels, 1 storytelling video, and 1 podcast interview. Standard quality.',
         type: 'membership',
         priceTND: 49,
         membershipFeatures: {
           reelsLimit: 3,
-          videosLimit: 1, // storytelling
+          videosLimit: 1, 
+          podcastsLimit: 1,
           quality: 'standard',
           module: 'impact'
         },
@@ -79,12 +80,13 @@ const seedPacks = async () => {
       },
       {
         title: 'Impact Gold',
-        description: 'Pack Gold for Impact',
+        description: 'Comprehensive storytelling. 8 reels, 3 storytelling videos, 2 podcasts, and 1 mini-documentary (3-5 min). HD quality.',
         type: 'membership',
         priceTND: 199,
         membershipFeatures: {
           reelsLimit: 8,
-          videosLimit: 3, // storytelling
+          videosLimit: 3,
+          podcastsLimit: 2,
           documentariesLimit: 1,
           quality: 'hd',
           module: 'impact'
@@ -93,13 +95,15 @@ const seedPacks = async () => {
       },
       {
         title: 'Impact Premium',
-        description: 'Pack Premium for Impact',
+        description: 'Full marketing & orientation strategy. 15 reels, 5 storytelling videos, 3 podcasts, 2 mini-documentaries, and 1 complete success story series. HD quality.',
         type: 'membership',
         priceTND: 499,
         membershipFeatures: {
           reelsLimit: 15,
-          videosLimit: 5, // storytelling
+          videosLimit: 5,
+          podcastsLimit: 3,
           documentariesLimit: 2,
+          successStoryLimit: 1,
           quality: 'hd',
           module: 'impact'
         },
@@ -108,7 +112,7 @@ const seedPacks = async () => {
       // WELCOME PACK
       {
         title: 'Welcome Pack',
-        description: 'Free video for new users',
+        description: 'A gift for joining our vision. Includes 1 free video download from the Impact module.',
         type: 'membership',
         priceTND: 0,
         membershipFeatures: {

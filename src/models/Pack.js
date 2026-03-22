@@ -31,10 +31,12 @@ const packSchema = new mongoose.Schema(
 
     // المميزات في حالة باك عضوية
     membershipFeatures: {
-      photosLimit: Number,
-      reelsLimit: Number,
-      videosLimit: Number,
-      documentariesLimit: Number,
+      photosLimit: { type: Number, default: 0 },
+      reelsLimit: { type: Number, default: 0 },
+      videosLimit: { type: Number, default: 0 },
+      documentariesLimit: { type: Number, default: 0 },
+      podcastsLimit: { type: Number, default: 0 },
+      successStoryLimit: { type: Number, default: 0 },
       quality: { type: String, enum: ['standard', 'hd', '4k'], default: 'standard' },
       module: { type: String, enum: ['tounesna', 'impact', 'both'] },
     },

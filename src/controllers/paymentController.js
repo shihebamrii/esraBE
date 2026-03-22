@@ -116,6 +116,8 @@ const handleWebhook = asyncHandler(async (req, res, next) => {
                 reelsRemaining: pack.membershipFeatures.reelsLimit || 0,
                 videosRemaining: pack.membershipFeatures.videosLimit || 0,
                 documentariesRemaining: pack.membershipFeatures.documentariesLimit || 0,
+                podcastsRemaining: pack.membershipFeatures.podcastsLimit || 0,
+                successStoryRemaining: pack.membershipFeatures.successStoryLimit || 0,
               },
               quality: pack.membershipFeatures.quality,
               isActive: true,
