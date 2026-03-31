@@ -15,6 +15,13 @@ const photoSchema = new mongoose.Schema(
       maxlength: [200, 'العنوان طويل برشا'],
     },
 
+    // نوع الميديا (صورة أو فيديو)
+    mediaType: {
+      type: String,
+      enum: ['photo', 'video'],
+      default: 'photo',
+    },
+
     // الوصف
     description: {
       type: String,
@@ -100,6 +107,7 @@ const photoSchema = new mongoose.Schema(
         size: Number,
         width: Number,
         height: Number,
+        duration: Number, // للفيديو
       },
       lowRes: {
         filename: String,

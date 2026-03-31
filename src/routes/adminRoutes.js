@@ -12,7 +12,7 @@ const adminUserController = require('../controllers/adminUserController');
 const adminPlaylistController = require('../controllers/adminPlaylistController');
 const packController = require('../controllers/packController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
-const { contentWithThumbnailUpload, photoWithPreviewUpload, singlePhotoUpload, handleMulterError } = require('../middlewares/uploadMiddleware');
+const { contentWithThumbnailUpload, mediaWithPreviewUpload, singleMediaUpload, handleMulterError } = require('../middlewares/uploadMiddleware');
 const { validate, validateObjectId } = require('../middlewares/validateMiddleware');
 const { contentValidation, photoValidation, packValidation } = require('../utils/validators');
 
@@ -94,7 +94,7 @@ router.delete(
 router.post(
   '/photos/upload',
   authorize('admin'),
-  photoWithPreviewUpload,
+  mediaWithPreviewUpload,
   handleMulterError,
   parseJsonFields(['tags']),
   adminPhotoController.uploadPhoto
@@ -104,7 +104,7 @@ router.post(
 router.post(
   '/photos/upload-single',
   authorize('admin'),
-  singlePhotoUpload,
+  singleMediaUpload,
   handleMulterError,
   parseJsonFields(['tags']),
   adminPhotoController.uploadPhoto
@@ -122,7 +122,7 @@ router.get(
 router.put(
   '/photos/:id',
   authorize('admin'),
-  photoWithPreviewUpload,
+  mediaWithPreviewUpload,
   handleMulterError,
   parseJsonFields(['tags']),
   validateObjectId('id'),

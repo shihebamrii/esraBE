@@ -84,6 +84,24 @@ const contentUpload = multer({
 });
 
 /**
+ * إعداد Multer لـ Tounesna (صور وفيديوهات)
+ */
+const tounesnaMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: config.upload.maxVideoSize,
+  },
+  fileFilter: (_req, file, cb) => {
+    const allAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+    if (allAllowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new AppError(`نوع الملف مش مسموح: ${file.mimetype}. الصور والفيديوهات فقط.`, 400), false);
+    }
+  },
+});
+
+/**
  * ميدلوير للتعامل مع أخطاء Multer
  */
 const handleMulterError = (err, _req, _res, next) => {
@@ -109,12 +127,25 @@ const handleMulterError = (err, _req, _res, next) => {
 const singlePhotoUpload = photoUpload.single('photo');
 
 /**
- * رفع صورتين (high-res و low-res)
+ * رفع صورتين (high-res و low-res) (قديماً، نحتفظ بها إن دعت الحاجة)
  */
 const photoWithPreviewUpload = photoUpload.fields([
   { name: 'highRes', maxCount: 1 },
   { name: 'lowRes', maxCount: 1 },
 ]);
+
+/**
+ * رفع ميديا (صورة أو فيديو) مع preview
+ */
+const mediaWithPreviewUpload = tounesnaMediaUpload.fields([
+  { name: 'highRes', maxCount: 1 },
+  { name: 'lowRes', maxCount: 1 },
+]);
+
+/**
+ * رفع ميديا واحدة (صورة/فيديو) - shortcut
+ */
+const singleMediaUpload = tounesnaMediaUpload.single('photo');
 
 /**
  * رفع محتوى مع thumbnail
@@ -142,6 +173,8 @@ module.exports = {
   handleMulterError,
   singlePhotoUpload,
   photoWithPreviewUpload,
+  mediaWithPreviewUpload,
+  singleMediaUpload,
   contentWithThumbnailUpload,
   singleVideoUpload,
   singleAudioUpload,

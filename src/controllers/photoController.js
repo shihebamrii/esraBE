@@ -9,6 +9,7 @@ const { createLowResVersion, addTiledWatermark, getImageInfo } = require('../ser
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { safeParseJSON } = require('../utils/safeParser');
+const AIService = require('../services/aiService');
 
 /**
  * @desc    قائمة الصور مع فلاتر
@@ -254,10 +255,19 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   const lowResFile = req.files?.lowRes?.[0];
 
   if (!highResFile) {
-    return next(new AppError('الصورة بالجودة العالية ضرورية!', 400));
+    return next(new AppError('الصورة بالجودة العالية أو الفيديو ضروري!', 400));
   }
 
-  const highResInfo = await getImageInfo(highResFile.buffer);
+  const isVideo = highResFile.mimetype.startsWith('video/');
+  
+  if (isVideo && !lowResFile) {
+    return next(new AppError('للفيديو، الرجاء رفع صورة مصغرة (Thumbnail)!', 400));
+  }
+
+  let highResInfo = {};
+  if (!isVideo) {
+    highResInfo = await getImageInfo(highResFile.buffer);
+  }
 
   const highResFileId = await uploadToGridFS(
     highResFile.buffer,
@@ -265,7 +275,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     highResFile.mimetype,
     {
       uploadedBy: req.user._id,
-      type: 'photo-highres',
+      type: isVideo ? 'photo-video' : 'photo-highres',
       ...highResInfo,
     }
   );
@@ -317,7 +327,11 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     tags,
   } = req.body;
 
+  // --- Parse user-provided tags ---
+  let finalTags = safeParseJSON(tags) || [];
+
   const photo = await Photo.create({
+    mediaType: isVideo ? 'video' : 'photo',
     title,
     description,
     governorate,
@@ -329,7 +343,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     attributionText: attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable',
     createdBy: req.user._id,
     approvalStatus: 'pending', // دائما معلقة للمستخدم
-    tags: safeParseJSON(tags),
+    tags: finalTags,
     fileInfo: {
       highRes: { filename: highResFile.originalname, contentType: highResFile.mimetype, size: highResFile.size, width: highResInfo.width, height: highResInfo.height },
       lowRes: { filename: `lowres_${highResFile.originalname}`, contentType: 'image/jpeg', size: watermarkedBuffer.length, width: lowResInfo.width, height: lowResInfo.height },
@@ -352,6 +366,40 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * يحلل الصورة ويرجع الـ tags المقترحة باستعمال AI
+ * @route POST /api/photos/analyze
+ */
+const analyzeImageForTags = asyncHandler(async (req, res, next) => {
+  if (!req.files && !req.file) {
+    return next(new AppError('لازم تختار صورة عشان نحللها', 400));
+  }
+
+  let buffer;
+  // Get buffer depending on how `mediaWithPreviewUpload` parsed it
+  if (req.files && req.files.lowRes) {
+    buffer = req.files.lowRes[0].buffer;
+  } else if (req.files && req.files.highRes) {
+    buffer = req.files.highRes[0].buffer;
+  } else if (req.file) {
+    buffer = req.file.buffer;
+  }
+
+  if (!buffer) {
+    return next(new AppError('خطأ في استخراج الصورة', 400));
+  }
+
+  const aiData = await AIService.analyzeImage(buffer);
+
+  res.status(200).json({
+    status: 'success',
+    data: { 
+      tags: aiData.tags,
+      description: aiData.description
+    },
+  });
+});
+
 module.exports = {
   getPhotos,
   getPhoto,
@@ -361,4 +409,5 @@ module.exports = {
   getGovernorates,
   getLandscapeTypes,
   uploadPhoto,
+  analyzeImageForTags,
 };

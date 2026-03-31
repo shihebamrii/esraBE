@@ -9,13 +9,16 @@ const photoController = require('../controllers/photoController');
 const { optionalAuth, protect } = require('../middlewares/authMiddleware');
 const { validate, validateObjectId } = require('../middlewares/validateMiddleware');
 const { photoValidation } = require('../utils/validators');
-const { photoWithPreviewUpload, handleMulterError } = require('../middlewares/uploadMiddleware');
+const { mediaWithPreviewUpload, handleMulterError, singleMediaUpload } = require('../middlewares/uploadMiddleware');
 
 // قائمة الصور
 router.get('/', validate(photoValidation.query, 'query'), photoController.getPhotos);
 
 // رفع صورة (للمستخدم العادي، تحتاج موافقة)
-router.post('/upload', protect, photoWithPreviewUpload, handleMulterError, photoController.uploadPhoto);
+router.post('/upload', protect, mediaWithPreviewUpload, handleMulterError, photoController.uploadPhoto);
+
+// تحليل الصورة للحصول على ال tags قبل الرفع النهائي
+router.post('/analyze', protect, singleMediaUpload, handleMulterError, photoController.analyzeImageForTags);
 
 // الولايات المتوفرة
 router.get('/governorates', photoController.getGovernorates);

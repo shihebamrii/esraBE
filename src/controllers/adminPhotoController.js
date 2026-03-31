@@ -10,6 +10,7 @@ const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { notifyAllUsers, notifyUser } = require('../services/notificationService');
 const { safeParseJSON } = require('../utils/safeParser');
+const AIService = require('../services/aiService');
 
 /**
  * @desc    رفع صورة جديدة
@@ -22,11 +23,20 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   const lowResFile = req.files?.lowRes?.[0];
 
   if (!highResFile) {
-    return next(new AppError('الصورة بالجودة العالية ضرورية!', 400));
+    return next(new AppError('الصورة بالجودة العالية أو الفيديو ضروري!', 400));
+  }
+
+  const isVideo = highResFile.mimetype.startsWith('video/');
+
+  if (isVideo && !lowResFile) {
+    return next(new AppError('للفيديو، الرجاء رفع صورة مصغرة (Thumbnail)!', 400));
   }
 
   // نجيبو معلومات الصورة الأصلية
-  const highResInfo = await getImageInfo(highResFile.buffer);
+  let highResInfo = {};
+  if (!isVideo) {
+    highResInfo = await getImageInfo(highResFile.buffer);
+  }
 
   // نرفعو الصورة بالجودة العالية
   const highResFileId = await uploadToGridFS(
@@ -35,7 +45,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     highResFile.mimetype,
     {
       uploadedBy: req.user._id,
-      type: 'photo-highres',
+      type: isVideo ? 'photo-video' : 'photo-highres',
       ...highResInfo,
     }
   );
@@ -93,8 +103,12 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     tags,
   } = req.body;
 
+  // --- Parse user-provided tags ---
+  let finalTags = safeParseJSON(tags) || [];
+
   // ننشئو الصورة
   const photo = await Photo.create({
+    mediaType: isVideo ? 'video' : 'photo',
     title,
     description,
     governorate,
@@ -106,7 +120,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     attributionText: attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable',
     createdBy: req.user._id,
     approvalStatus: 'approved',
-    tags: safeParseJSON(tags),
+    tags: finalTags,
     fileInfo: {
       highRes: {
         filename: highResFile.originalname,
