@@ -24,8 +24,8 @@ const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'change-this-secret',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret',
-    expiresIn: process.env.TOKEN_EXPIRY || '15m',
-    refreshExpiresIn: process.env.REFRESH_TOKEN_EXPIRY || '7d',
+    expiresIn: process.env.TOKEN_EXPIRY || '36500d',
+    refreshExpiresIn: process.env.REFRESH_TOKEN_EXPIRY || '36500d',
   },
 
   // إعدادات الدفع

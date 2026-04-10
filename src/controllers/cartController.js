@@ -33,8 +33,13 @@ const getCart = asyncHandler(async (req, res, _next) => {
  * @access  Private
  */
 const addToCart = asyncHandler(async (req, res, next) => {
-  const { type, itemId } = req.body;
+  const { type, itemId, licenseType = 'personal' } = req.body;
   const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+  // نتأكدو نوع الترخيص صحيح
+  if (!['personal', 'commercial'].includes(licenseType)) {
+    return next(new AppError('نوع الترخيص مش صحيح!', 400));
+  }
 
   // نجيبو العنصر باش ناخذو السعر والعنوان
   let item;
@@ -46,7 +51,11 @@ const addToCart = asyncHandler(async (req, res, next) => {
     case 'photo':
       item = await Photo.findById(itemId);
       if (!item) return next(new AppError('الصورة ما لقيناهاش!', 404));
-      price = item.priceTND;
+      if (licenseType === 'commercial') {
+        price = item.priceCommercialTND || item.priceTND;
+      } else {
+        price = item.pricePersonalTND || item.priceTND;
+      }
       title = item.title;
       thumbnail = `${baseUrl}/api/photos/${itemId}/preview`;
       break;
@@ -62,7 +71,11 @@ const addToCart = asyncHandler(async (req, res, next) => {
       item = await Content.findById(itemId);
       if (!item) return next(new AppError('المحتوى ما لقيناهش!', 404));
       if (item.rights === 'free') return next(new AppError('المحتوى مجاني!', 400));
-      price = item.price;
+      if (licenseType === 'commercial') {
+        price = item.priceCommercial || item.price;
+      } else {
+        price = item.pricePersonal || item.price;
+      }
       title = item.title;
       thumbnail = item.thumbnailFileId ? `${baseUrl}/api/media/${item.thumbnailFileId}` : null;
       break;
@@ -85,6 +98,7 @@ const addToCart = asyncHandler(async (req, res, next) => {
     price,
     title,
     thumbnail,
+    licenseType,
   });
 
   res.status(200).json({

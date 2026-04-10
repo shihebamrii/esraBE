@@ -34,6 +34,13 @@ const cartItemSchema = new mongoose.Schema(
     // صورة مصغرة (URL)
     thumbnail: String,
 
+    // نوع الترخيص
+    licenseType: {
+      type: String,
+      enum: ['personal', 'commercial'],
+      default: 'personal',
+    },
+
     // تاريخ الإضافة
     addedAt: {
       type: Date,

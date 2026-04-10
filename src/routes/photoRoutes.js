@@ -17,8 +17,6 @@ router.get('/', validate(photoValidation.query, 'query'), photoController.getPho
 // رفع صورة (للمستخدم العادي، تحتاج موافقة)
 router.post('/upload', protect, mediaWithPreviewUpload, handleMulterError, photoController.uploadPhoto);
 
-// تحليل الصورة للحصول على ال tags قبل الرفع النهائي
-router.post('/analyze', protect, singleMediaUpload, handleMulterError, photoController.analyzeImageForTags);
 
 // الولايات المتوفرة
 router.get('/governorates', photoController.getGovernorates);

@@ -80,6 +80,8 @@ const uploadContent = asyncHandler(async (req, res, next) => {
     duration,
     rights,
     price,
+    pricePersonal,
+    priceCommercial,
     licenseInfo,
     visibility,
     metadata,
@@ -99,7 +101,9 @@ const uploadContent = asyncHandler(async (req, res, next) => {
     thumbnailFileId,
     fileFileId,
     rights: rights || 'free',
-    price: price ? parseFloat(price) : 0,
+    price: price ? parseFloat(price) : (pricePersonal ? parseFloat(pricePersonal) : 0),
+    pricePersonal: pricePersonal ? parseFloat(pricePersonal) : (price ? parseFloat(price) : 0),
+    priceCommercial: priceCommercial ? parseFloat(priceCommercial) : 0,
     licenseInfo,
     visibility: visibility || 'public',
     createdBy: req.user._id,
@@ -201,6 +205,8 @@ const updateContent = asyncHandler(async (req, res, next) => {
     'language',
     'rights',
     'price',
+    'pricePersonal',
+    'priceCommercial',
     'licenseInfo',
     'visibility',
     'metadata',
@@ -212,7 +218,7 @@ const updateContent = asyncHandler(async (req, res, next) => {
       // للـ arrays نحاولو نـ parse
       if (['authors', 'themes', 'tags', 'metadata'].includes(field) && typeof req.body[field] === 'string') {
         updates[field] = safeParseJSON(req.body[field], field === 'metadata' ? {} : []);
-      } else if (field === 'price') {
+      } else if (['price', 'pricePersonal', 'priceCommercial'].includes(field)) {
         updates[field] = parseFloat(req.body[field]) || 0;
       } else {
         updates[field] = req.body[field];

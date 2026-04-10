@@ -85,8 +85,22 @@ const contentSchema = new mongoose.Schema(
       default: 'free',
     },
 
-    // السعر إذا كان مدفوع (بالدينار)
+    // السعر إذا كان مدفوع (بالدينار) - تراجع
     price: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    // سعر الترخيص الشخصي
+    pricePersonal: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    // سعر الترخيص التجاري
+    priceCommercial: {
       type: Number,
       min: 0,
       default: 0,
@@ -190,7 +204,7 @@ contentSchema.index({ views: -1 });
  * نرجعو إذا المحتوى مجاني
  */
 contentSchema.virtual('isFree').get(function () {
-  return this.rights === 'free' || this.price === 0;
+  return this.rights === 'free' || ((this.pricePersonal || this.price || 0) === 0 && (this.priceCommercial || 0) === 0);
 });
 
 /**

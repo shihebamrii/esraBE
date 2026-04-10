@@ -32,6 +32,13 @@ const orderItemSchema = new mongoose.Schema(
 
     // العنوان (نسخة للتاريخ)
     title: String,
+
+    // نوع الترخيص
+    licenseType: {
+      type: String,
+      enum: ['personal', 'commercial'],
+      default: 'personal',
+    },
   },
   { _id: false }
 );

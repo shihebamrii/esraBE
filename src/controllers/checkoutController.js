@@ -84,6 +84,9 @@ const redeemDownload = asyncHandler(async (req, res, next) => {
 
   // Generate the download token
   const rawToken = order.createDownloadToken(itemType, item._id, 24);
+  const rawTokens = {};
+  rawTokens[`${itemType}_${item._id.toString()}`] = rawToken;
+  order.metadata = { ...order.metadata, rawTokens };
   await order.save();
 
   await AuditLog.log({
@@ -140,6 +143,7 @@ const createOrder = asyncHandler(async (req, res, next) => {
       itemId: item.itemId,
       price: item.price,
       title: item.title,
+      licenseType: item.licenseType || 'personal',
     })),
     total,
     currency: 'TND',
@@ -221,13 +225,10 @@ const getOrder = asyncHandler(async (req, res, next) => {
   if (order.paymentStatus === 'paid') {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     downloadLinks = order.downloadTokens
-      .filter((t) => t.expiresAt > new Date() && t.usesRemaining > 0)
       .map((t) => ({
         type: t.itemType,
         itemId: t.itemId,
         downloadUrl: `${baseUrl}/api/orders/${order._id}/download/${t.token}`,
-        expiresAt: t.expiresAt,
-        usesRemaining: t.usesRemaining,
       }));
   }
 

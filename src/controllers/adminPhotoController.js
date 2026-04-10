@@ -10,7 +10,6 @@ const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { notifyAllUsers, notifyUser } = require('../services/notificationService');
 const { safeParseJSON } = require('../utils/safeParser');
-const AIService = require('../services/aiService');
 
 /**
  * @desc    رفع صورة جديدة
@@ -98,6 +97,8 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     governorate,
     landscapeType,
     priceTND,
+    pricePersonalTND,
+    priceCommercialTND,
     watermark,
     attributionText,
     tags,
@@ -115,7 +116,9 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     landscapeType,
     lowResFileId,
     highResFileId,
-    priceTND: parseFloat(priceTND) || 0,
+    priceTND: parseFloat(pricePersonalTND || priceTND) || 0,
+    pricePersonalTND: parseFloat(pricePersonalTND || priceTND) || 0,
+    priceCommercialTND: parseFloat(priceCommercialTND) || 0,
     watermark: watermark !== 'false',
     attributionText: attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable',
     createdBy: req.user._id,
@@ -223,6 +226,8 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     'governorate',
     'landscapeType',
     'priceTND',
+    'pricePersonalTND',
+    'priceCommercialTND',
     'watermark',
     'attributionText',
     'tags',
@@ -233,7 +238,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     if (req.body[field] !== undefined) {
       if (field === 'tags' && typeof req.body[field] === 'string') {
         updates[field] = safeParseJSON(req.body[field]);
-      } else if (field === 'priceTND') {
+      } else if (['priceTND', 'pricePersonalTND', 'priceCommercialTND'].includes(field)) {
         updates[field] = parseFloat(req.body[field]) || 0;
       } else {
         updates[field] = req.body[field];

@@ -60,11 +60,25 @@ const photoSchema = new mongoose.Schema(
       // required: [true, 'الصورة بالجودة العالية ضرورية!'], // جعلناها اختيارية خاطر تنجم تكون رابط خارجي
     },
 
-    // السعر بالدينار التونسي
+    // السعر بالدينار التونسي (تراجع: يستعمل كسعر شخصي)
     priceTND: {
       type: Number,
-      required: [true, 'السعر ضروري!'],
       min: [0, 'السعر لازم يكون إيجابي'],
+      default: 0,
+    },
+
+    // سعر الترخيص الشخصي
+    pricePersonalTND: {
+      type: Number,
+      min: [0, 'السعر لازم يكون إيجابي'],
+      default: 0,
+    },
+
+    // سعر الترخيص التجاري
+    priceCommercialTND: {
+      type: Number,
+      min: [0, 'السعر لازم يكون إيجابي'],
+      default: 0,
     },
 
     // إذا عليها علامة مائية
@@ -191,7 +205,7 @@ photoSchema.virtual('highResUrl').get(function () {
  * إذا الصورة مجانية
  */
 photoSchema.virtual('isFree').get(function () {
-  return this.priceTND === 0;
+  return (this.pricePersonalTND || this.priceTND || 0) === 0 && (this.priceCommercialTND || 0) === 0;
 });
 
 // ============================================

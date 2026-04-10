@@ -283,6 +283,15 @@ const getMyDownloads = asyncHandler(async (req, res, next) => {
        if (tokenDoc && order.metadata?.rawTokens) {
          tokenStr = order.metadata.rawTokens[`${d.type}_${d.itemId.toString()}`];
        }
+       
+       // Fallback for legacy orders/redeems that didn't save the raw token
+       if (!tokenStr && order.paymentStatus === 'paid') {
+         tokenStr = order.createDownloadToken(d.type, d.itemId, 24);
+         const rawTokens = order.metadata?.rawTokens || {};
+         rawTokens[`${d.type}_${d.itemId.toString()}`] = tokenStr;
+         order.metadata = { ...order.metadata, rawTokens };
+         order.save().catch(err => console.error('Failed to save legacy token:', err));
+       }
     }
 
     return {
