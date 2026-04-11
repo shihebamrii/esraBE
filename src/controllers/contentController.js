@@ -47,7 +47,7 @@ const getContents = asyncHandler(async (req, res, _next) => {
 
   // نجيبو النتائج
   const contents = await Content.find(query)
-    .select('-__v')
+    .select('title type region themes duration thumbnailFileId fileFileId rights price visibility createdAt')
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));

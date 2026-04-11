@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const compression = require('compression');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -18,6 +19,13 @@ const { notFound } = require('./middlewares/notFound');
 require('dotenv').config();
 
 const app = express();
+
+// ============================================
+// Performance Middlewares / ميدلوير الأداء
+// ============================================
+
+// Compression باش نصغرو حجم الداتا الي ماشية
+app.use(compression());
 
 // ============================================
 // Security Middlewares / ميدلوير الأمان
