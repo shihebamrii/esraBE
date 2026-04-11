@@ -10,6 +10,7 @@ const adminContentController = require('../controllers/adminContentController');
 const adminPhotoController = require('../controllers/adminPhotoController');
 const adminUserController = require('../controllers/adminUserController');
 const adminPlaylistController = require('../controllers/adminPlaylistController');
+const inquiryController = require('../controllers/inquiryController');
 const packController = require('../controllers/packController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { contentWithThumbnailUpload, mediaWithPreviewUpload, singleMediaUpload, handleMulterError } = require('../middlewares/uploadMiddleware');
@@ -243,5 +244,13 @@ router.delete(
   validateObjectId('id'),
   adminPlaylistController.deletePlaylist
 );
+
+// ============================================
+// Inquiry Routes / راوتز الاستفسارات
+// ============================================
+
+router.get('/inquiries', authorize('admin'), inquiryController.getAllInquiries);
+router.patch('/inquiries/:id', authorize('admin'), inquiryController.updateInquiry);
+router.delete('/inquiries/:id', authorize('admin'), inquiryController.deleteInquiry);
 
 module.exports = router;

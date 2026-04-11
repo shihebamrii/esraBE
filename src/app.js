@@ -98,28 +98,31 @@ const mediaRoutes = require('./routes/mediaRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const searchRoutes = require('./routes/searchRoutes');
+const inquiryRoutes = require('./routes/inquiryRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const packRoutes = require('./routes/packRoutes');
-const playlistRoutes = require('./routes/playlistRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
-const favoriteRoutes = require('./routes/favoriteRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const favoriteRoutes = require('./routes/favoriteRoutes');
+const packRoutes = require('./routes/packRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const playlistRoutes = require('./routes/playlistRoutes');
 
-// نربطو الراوتز بالتطبيق
+// نربطو الراوتز بالمسارات متاعهم
 app.use('/api/auth', authRoutes);
-app.use('/api/contents', contentRoutes);
+app.use('/api/content', contentRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/inquiries', inquiryRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/packs', packRoutes);
-app.use('/api/playlists', playlistRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/dashboard', require('./routes/dashboardRoutes'));
-app.use('/api/favorites', favoriteRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/packs', packRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/playlists', playlistRoutes);
 
 // ============================================
 // Error Handling / معالجة الأخطاء

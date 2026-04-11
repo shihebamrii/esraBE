@@ -15,6 +15,7 @@ const Cart = require('./Cart');
 const Favorite = require('./Favorite');
 const UserPack = require('./UserPack');
 const Playlist = require('./Playlist');
+const Inquiry = require('./Inquiry');
 
 module.exports = {
   User,
@@ -29,4 +30,5 @@ module.exports = {
   Favorite,
   UserPack,
   Playlist,
+  Inquiry,
 };
