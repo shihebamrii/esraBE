@@ -57,6 +57,12 @@ router.post(
 // الحصول على بيانات المستخدم الحالي
 router.get('/me', protect, authController.getMe);
 
+// تحديث بيانات المستخدم الحالي
+router.put('/me', protect, validate(authValidation.updateMe), authController.updateMe);
+
+// حذف الحساب
+router.delete('/me', protect, authController.deleteMe);
+
 // تسجيل الخروج
 router.post('/logout', protect, authController.logout);
 

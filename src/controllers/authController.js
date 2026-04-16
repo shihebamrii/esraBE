@@ -390,6 +390,93 @@ const getMe = asyncHandler(async (req, res, _next) => {
 });
 
 /**
+ * @desc    تحديث بيانات المستخدم الحالي
+ * @route   PUT /api/auth/me
+ * @access  Private
+ */
+const updateMe = asyncHandler(async (req, res, next) => {
+  const { name, email, phone, locale, password, newPassword } = req.body;
+
+  // 1. Get user with password hash if they want to change password
+  const user = await User.findById(req.user._id).select('+passwordHash');
+
+  // 2. Check if changing password
+  if (password && newPassword) {
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return next(new AppError('الباسوورد الحالي غالط!', 401));
+    }
+    user.passwordHash = newPassword;
+  }
+
+  // 3. Update other fields
+  if (name) user.name = name;
+  if (email) user.email = email;
+  if (phone !== undefined) user.phone = phone;
+  if (locale) user.locale = locale;
+
+  await user.save();
+
+  // 4. Log the action
+  await AuditLog.log({
+    userId: user._id,
+    action: 'AUTH_UPDATE_PROFILE',
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    result: 'success',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'تم تحديث البيانات بنجاح!',
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        locale: user.locale,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
+      },
+    },
+  });
+});
+
+/**
+ * @desc    حذف أو توقيف الحساب نهائيا (Soft Delete)
+ * @route   DELETE /api/auth/me
+ * @access  Private
+ */
+const deleteMe = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    return next(new AppError('مستخدم غير موجود!', 404));
+  }
+
+  // Soft delete
+  user.isActive = false;
+  user.refreshTokens = []; // Invalidates all sessions
+  await user.save({ validateBeforeSave: false });
+
+  // Log action
+  await AuditLog.log({
+    userId: user._id,
+    action: 'AUTH_DELETE_ACCOUNT',
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    result: 'success',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'تم حذف الحساب بنجاح!',
+  });
+});
+
+/**
  * @desc    تسجيل الخروج (حذف الريفريش توكن)
  * @route   POST /api/auth/logout
  * @access  Private
@@ -426,5 +513,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getMe,
+  updateMe,
+  deleteMe,
   logout,
 };

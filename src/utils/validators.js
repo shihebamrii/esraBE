@@ -33,6 +33,25 @@ const authValidation = {
   }),
 
   /**
+   * فاليديشن تحديث الحساب
+   */
+  updateMe: Joi.object({
+    name: Joi.string().min(2).max(100).optional().messages({
+      'string.min': 'الاسم لازم يكون أكثر من حرفين',
+      'string.max': 'الاسم طويل برشا',
+    }),
+    email: Joi.string().email().optional().messages({
+      'string.email': 'الإيميل مش صحيح!',
+    }),
+    phone: Joi.string().allow('').optional(),
+    locale: Joi.string().valid('ar', 'fr', 'en').optional(),
+    password: Joi.string().optional(),
+    newPassword: Joi.string().min(8).max(128).optional().messages({
+      'string.min': 'الباسوورد الجديد لازم يكون على الأقل 8 أحرف',
+    }),
+  }).with('newPassword', 'password'), // Require current password if new password is provided
+
+  /**
    * فاليديشن تسجيل الدخول
    */
   login: Joi.object({
