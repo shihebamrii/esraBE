@@ -23,11 +23,17 @@ const getContents = asyncHandler(async (req, res, _next) => {
     language,
     rights,
     freeOnly,
+    visibility,
     sort = '-createdAt',
   } = req.query;
 
   // نبنيو الكويري
-  const query = { visibility: 'public' };
+  const query = {};
+  if (visibility && visibility !== 'all') {
+    query.visibility = visibility;
+  } else if (!visibility) {
+    query.visibility = 'public';
+  }
 
   if (type) {
     if (type.includes(',')) {
@@ -55,8 +61,8 @@ const getContents = asyncHandler(async (req, res, _next) => {
   // نضيفو الـ URLs
   const contentsWithUrls = contents.map((content) => {
     const obj = content.toObject();
-    obj.thumbnailUrl = content.thumbnailFileId ? `${baseUrl}/api/media/${content.thumbnailFileId}` : null;
-    obj.contentUrl = `${baseUrl}/api/media/${content.fileFileId}`;
+    obj.thumbnailUrl = content.thumbnailFileId ? `/api/media/${content.thumbnailFileId}` : null;
+    obj.contentUrl = `/api/media/${content.fileFileId}`;
     return obj;
   });
 
@@ -100,8 +106,8 @@ const getContent = asyncHandler(async (req, res, next) => {
   }
 
   const obj = content.toObject();
-  obj.thumbnailUrl = content.thumbnailFileId ? `${baseUrl}/api/media/${content.thumbnailFileId}` : null;
-  obj.contentUrl = `${baseUrl}/api/media/${content.fileFileId}`;
+  obj.thumbnailUrl = content.thumbnailFileId ? `/api/media/${content.thumbnailFileId}` : null;
+  obj.contentUrl = `/api/media/${content.fileFileId}`;
 
   res.status(200).json({
     status: 'success',

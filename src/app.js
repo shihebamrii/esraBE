@@ -44,18 +44,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
 }));
 
-// Rate Limiting باش مايضروناش بطلبات ياسر
-const limiter = rateLimit({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.maxRequests,
-  message: {
-    status: 'error',
-    message: 'طلبات ياسر! استنى شويا وعاود.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
+// Rate Limiting (Disabled as per user request)
+// const limiter = rateLimit({
+//   windowMs: config.rateLimit.windowMs,
+//   max: config.rateLimit.maxRequests,
+//   message: {
+//     status: 'error',
+//     message: 'طلبات ياسر! استنى شويا وعاود.',
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
+// app.use('/api', limiter);
 
 // HPP باش نحميو من HTTP Parameter Pollution
 app.use(hpp());
@@ -109,7 +109,7 @@ const playlistRoutes = require('./routes/playlistRoutes');
 
 // نربطو الراوتز بالمسارات متاعهم
 app.use('/api/auth', authRoutes);
-app.use('/api/content', contentRoutes);
+app.use('/api/contents', contentRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/cart', cartRoutes);

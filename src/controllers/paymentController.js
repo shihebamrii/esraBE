@@ -15,12 +15,23 @@ const AppError = require('../utils/AppError');
  */
 const handleWebhook = asyncHandler(async (req, res, next) => {
   const signature = req.headers['stripe-signature'] || req.headers['x-paytech-signature'] || '';
-  const payload = req.body;
+  const rawBody = req.body;
+  let payload = req.body;
+
+  // نحولو البودي لـ JSON للتعامل معاه، ونخليو الـ rawBody للتحقق من التوقيع
+  if (Buffer.isBuffer(payload)) {
+    try {
+      payload = JSON.parse(payload.toString());
+    } catch (e) {
+      // لو مش JSON، نخليوه كما هو (ممكن يكون Stripe payload)
+    }
+  }
 
   const paymentProvider = getPaymentProvider();
 
-  // نتحققو من التوقيع
-  if (paymentProvider.name !== 'mock' && !paymentProvider.verifyWebhook(payload, signature)) {
+  // نتحققو من التوقيع (نبعثو الـ rawBody لـ Stripe)
+  const webhookPayload = paymentProvider.name === 'stripe' ? rawBody : payload;
+  if (paymentProvider.name !== 'mock' && !paymentProvider.verifyWebhook(webhookPayload, signature)) {
     await AuditLog.log({
       action: 'SUSPICIOUS_ACTIVITY',
       ip: req.ip,
@@ -49,7 +60,7 @@ const handleWebhook = asyncHandler(async (req, res, next) => {
     paymentStatus = payload.status === 'success' ? 'paid' : 'failed';
   } else {
     // Mock - نقبلو أي payload
-    orderId = payload.orderId;
+    orderId = payload.orderId || payload.order_id || payload.payment_id || payload.id || req.query.orderId;
     paymentStatus = 'paid';
   }
 
@@ -79,9 +90,20 @@ const handleWebhook = asyncHandler(async (req, res, next) => {
     // ننشئو توكنز التحميل لكل عنصر ونحطو الخام في الميتاداتا
     const rawTokens = {};
     for (const item of order.items) {
+      // نزيدو التوكن للعنصر الأصلي (سواء كان صورة أو باك أو محتوى)
       const rawToken = order.createDownloadToken(item.type, item.itemId, 24);
-      // نخزنو التوكن في الـ metadata للرجوع ليه
       rawTokens[`${item.type}_${item.itemId.toString()}`] = rawToken;
+
+      // لو العنصر باك من نوع collection، نزيدو توكنز لكل الصور الي فيه
+      if (item.type === 'pack') {
+        const pack = await Pack.findById(item.itemId);
+        if (pack && pack.type === 'collection' && pack.photoIds?.length > 0) {
+          for (const photoId of pack.photoIds) {
+            const photoToken = order.createDownloadToken('photo', photoId, 24);
+            rawTokens[`photo_${photoId.toString()}`] = photoToken;
+          }
+        }
+      }
     }
     
     order.metadata = { ...order.metadata, rawTokens };
@@ -166,8 +188,25 @@ const mockComplete = asyncHandler(async (req, res, next) => {
     status: 'success',
   };
 
+  // نعيطو لـ handleWebhook
+  const fakeRes = {
+    status: function(code) { 
+      this.statusCode = code; 
+      return this; 
+    },
+    json: function(data) { 
+      this.data = data; 
+      return this; 
+    }
+  };
+
   req.body = fakePayload;
-  return handleWebhook(req, res, next);
+  await handleWebhook(req, fakeRes, next);
+
+  // نوجهو المستخدم لصفحة الطلبات في الفرونت
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  // Use 303 See Other to ensure it's a GET request
+  res.redirect(303, `${frontendUrl}/orders?session_id=${sessionId}&success=true`);
 });
 
 /**
@@ -196,10 +235,30 @@ const getPaymentStatus = asyncHandler(async (req, res, next) => {
       const status = await paymentProvider.getPaymentStatus(order.metadata.paymentSession);
       
       if (status.status === 'paid') {
-        // نحدثو مثل الـ webhook
-        order.paymentStatus = 'paid';
-        order.paidAt = status.paidAt;
-        await order.save();
+        // نحدثو مثل الـ webhook - نعيطو لنفس اللوجيك
+        const fakeReq = {
+          body: { orderId: order._id, id: order.metadata.paymentSession },
+          ip: req.ip,
+          get: (header) => req.get(header),
+        };
+        
+        // نحضرو ريسبونس وهمية باش ما يبعثش داتا مرتين
+        const fakeRes = {
+          status: () => ({ json: () => {} }),
+        };
+        
+        await handleWebhook(fakeReq, fakeRes, next);
+        
+        // نعاودو نجيبو الأوردر باش نبعثو الداتا الجديدة
+        const updatedOrder = await Order.findById(orderId);
+        return res.status(200).json({
+          status: 'success',
+          data: {
+            orderId: updatedOrder._id,
+            paymentStatus: updatedOrder.paymentStatus,
+            paidAt: updatedOrder.paidAt,
+          },
+        });
       }
     } catch (error) {
       console.error('Error checking payment status:', error);

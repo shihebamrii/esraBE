@@ -198,6 +198,7 @@ photoSchema.virtual('previewUrl').get(function () {
  */
 photoSchema.virtual('highResUrl').get(function () {
   if (this.imageUrl) return this.imageUrl;
+  if (!this.highResFileId) return null;
   return `/api/media/${this.highResFileId}`;
 });
 

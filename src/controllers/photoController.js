@@ -24,11 +24,17 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
     minPrice,
     maxPrice,
     freeOnly,
+    approvalStatus,
     sort = '-createdAt',
   } = req.query;
 
   // نبنيو الكويري
-  const query = { approvalStatus: 'approved' };
+  const query = {};
+  if (approvalStatus && approvalStatus !== 'all') {
+    query.approvalStatus = approvalStatus;
+  } else if (!approvalStatus) {
+    query.approvalStatus = 'approved';
+  }
 
   if (governorate) query.governorate = governorate;
   if (landscapeType) query.landscapeType = landscapeType;

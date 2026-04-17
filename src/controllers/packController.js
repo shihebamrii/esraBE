@@ -3,7 +3,7 @@
  * هنا نتعاملو مع إنشاء وإدارة باكات الصور
  */
 
-const { Pack, Photo, AuditLog } = require('../models');
+const { Pack, Photo, Content, AuditLog } = require('../models');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -13,13 +13,22 @@ const asyncHandler = require('../utils/asyncHandler');
  * @access  Private (Admin)
  */
 const createPack = asyncHandler(async (req, res, next) => {
-  const { title, description, photoIds, priceTND, regionTag, type, membershipFeatures } = req.body;
+  const { title, description, photoIds, contentIds, priceTND, regionTag, type, membershipFeatures } = req.body;
 
-  // لو الباك من نوع collection، نتأكدو الصور موجودين
-  if (type === 'collection' && photoIds) {
-    const photos = await Photo.find({ _id: { $in: photoIds } });
-    if (photos.length !== photoIds.length) {
-      return next(new AppError('بعض الصور ما لقيناهمش!', 400));
+  // لو الباك من نوع collection، نتأكدو الصور والمحتوى موجودين
+  if (type === 'collection') {
+    if (photoIds && photoIds.length > 0) {
+      const photos = await Photo.find({ _id: { $in: photoIds } });
+      if (photos.length !== photoIds.length) {
+        return next(new AppError('بعض الصور ما لقيناهمش!', 400));
+      }
+    }
+    
+    if (contentIds && contentIds.length > 0) {
+      const contents = await Content.find({ _id: { $in: contentIds } });
+      if (contents.length !== contentIds.length) {
+        return next(new AppError('بعض المحتويات ما لقيناهمش!', 400));
+      }
     }
   }
 
@@ -29,19 +38,28 @@ const createPack = asyncHandler(async (req, res, next) => {
     description,
     type: type || 'collection',
     membershipFeatures,
-    photoIds: type === 'collection' ? photoIds : [],
+    photoIds: type === 'collection' ? (photoIds || []) : [],
+    contentIds: type === 'collection' ? (contentIds || []) : [],
     priceTND: parseFloat(priceTND) || 0,
     regionTag,
-    coverPhotoId: (type === 'collection' && photoIds) ? photoIds[0] : null,
+    coverPhotoId: (type === 'collection' && photoIds && photoIds.length > 0) ? photoIds[0] : null,
     createdBy: req.user._id,
   });
 
-  // لو collection، نحدثو الصور باش نربطوهم بالباك
-  if (type === 'collection' && photoIds) {
-    await Photo.updateMany(
-      { _id: { $in: photoIds } },
-      { $addToSet: { packs: pack._id } }
-    );
+  // لو collection، نحدثو الصور والمحتوى باش نربطوهم بالباك
+  if (type === 'collection') {
+    if (photoIds && photoIds.length > 0) {
+      await Photo.updateMany(
+        { _id: { $in: photoIds } },
+        { $addToSet: { packs: pack._id } }
+      );
+    }
+    if (contentIds && contentIds.length > 0) {
+      await Content.updateMany(
+        { _id: { $in: contentIds } },
+        { $addToSet: { packs: pack._id } }
+      );
+    }
   }
 
   await AuditLog.log({
@@ -73,7 +91,8 @@ const getAllPacks = asyncHandler(async (req, res, _next) => {
 
   const packs = await Pack.find(query)
     .populate('createdBy', 'name email')
-    .populate('photoIds', 'title thumbnailUrl priceTND')
+    .populate('photoIds', 'title imageUrl lowResFileId highResFileId priceTND')
+    .populate('contentIds', 'title thumbnailFileId price')
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));
@@ -104,7 +123,7 @@ const updatePack = asyncHandler(async (req, res, next) => {
     return next(new AppError('الباك ما لقيناهش!', 404));
   }
 
-  const allowedUpdates = ['title', 'description', 'photoIds', 'priceTND', 'regionTag', 'isActive', 'type', 'membershipFeatures'];
+  const allowedUpdates = ['title', 'description', 'photoIds', 'contentIds', 'priceTND', 'regionTag', 'isActive', 'type', 'membershipFeatures'];
   const updates = {};
 
   for (const field of allowedUpdates) {
@@ -117,23 +136,21 @@ const updatePack = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // لو تبدلو الصور في حالة collection
-  if (updates.photoIds && (updates.type === 'collection' || pack.type === 'collection')) {
-    // نمسحو الباك من الصور القديمة
-    await Photo.updateMany(
-      { packs: id },
-      { $pull: { packs: id } }
-    );
-    // نضيفو الباك للصور الجديدة
-    await Photo.updateMany(
-      { _id: { $in: updates.photoIds } },
-      { $addToSet: { packs: id } }
-    );
-    // نمسحو الـ cached ZIP لأنو الصور تبدلو
+  // لو تبدلو الصور أو المحتوى في حالة collection
+  if ((updates.photoIds || updates.contentIds) && (updates.type === 'collection' || pack.type === 'collection')) {
+    if (updates.photoIds) {
+      await Photo.updateMany({ packs: id }, { $pull: { packs: id } });
+      await Photo.updateMany({ _id: { $in: updates.photoIds } }, { $addToSet: { packs: id } });
+      updates.coverPhotoId = updates.photoIds[0] || pack.coverPhotoId;
+    }
+    
+    if (updates.contentIds) {
+      await Content.updateMany({ packs: id }, { $pull: { packs: id } });
+      await Content.updateMany({ _id: { $in: updates.contentIds } }, { $addToSet: { packs: id } });
+    }
+
     updates.cachedZipFileId = null;
     updates.zipGeneratedAt = null;
-    // نحدثو الـ cover
-    updates.coverPhotoId = updates.photoIds[0];
   }
 
   const updatedPack = await Pack.findByIdAndUpdate(id, updates, {
@@ -172,8 +189,12 @@ const deletePack = asyncHandler(async (req, res, next) => {
     return next(new AppError('الباك ما لقيناهش!', 404));
   }
 
-  // نمسحو الباك من الصور
+  // نمسحو الباك من الصور والمحتويات
   await Photo.updateMany(
+    { packs: id },
+    { $pull: { packs: id } }
+  );
+  await Content.updateMany(
     { packs: id },
     { $pull: { packs: id } }
   );

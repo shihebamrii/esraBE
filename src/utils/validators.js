@@ -142,13 +142,14 @@ const contentValidation = {
    */
   query: Joi.object({
     page: Joi.number().min(1).default(1),
-    limit: Joi.number().min(1).max(100).default(20),
+    limit: Joi.number().min(1).max(5000).default(20),
     type: Joi.string(),
     region: Joi.string(),
     theme: Joi.string(),
     language: Joi.string(),
     rights: Joi.string().valid('free', 'paid', 'license'),
     freeOnly: Joi.boolean(),
+    visibility: Joi.string().valid('public', 'private', 'all'),
     sort: Joi.string().valid('createdAt', '-createdAt', 'views', '-views', 'title'),
   }),
 };
@@ -191,12 +192,13 @@ const photoValidation = {
    */
   query: Joi.object({
     page: Joi.number().min(1).default(1),
-    limit: Joi.number().min(1).max(100).default(20),
+    limit: Joi.number().min(1).max(5000).default(20),
     governorate: Joi.string(),
     landscapeType: Joi.string(),
     minPrice: Joi.number().min(0),
     maxPrice: Joi.number().min(0),
     freeOnly: Joi.boolean(),
+    approvalStatus: Joi.string().valid('pending', 'approved', 'rejected', 'all'),
     sort: Joi.string().valid('createdAt', '-createdAt', 'priceTND', '-priceTND', 'title'),
   }),
 };
@@ -222,6 +224,7 @@ const packValidation = {
       module: Joi.string().valid('tounesna', 'impact', 'both'),
     }),
     photoIds: Joi.array().items(Joi.string().hex().length(24)),
+    contentIds: Joi.array().items(Joi.string().hex().length(24)),
     priceTND: Joi.number().min(0).required(),
     regionTag: Joi.string(),
     isActive: Joi.boolean(),
@@ -243,6 +246,7 @@ const packValidation = {
       module: Joi.string().valid('tounesna', 'impact', 'both'),
     }),
     photoIds: Joi.array().items(Joi.string().hex().length(24)),
+    contentIds: Joi.array().items(Joi.string().hex().length(24)),
     priceTND: Joi.number().min(0),
     regionTag: Joi.string(),
     isActive: Joi.boolean(),

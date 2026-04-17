@@ -70,7 +70,8 @@ class MockPaymentProvider extends PaymentAdapter {
     const sessionId = `mock_session_${Date.now()}_${orderId}`;
     
     // في التطوير، نرجعو رابط للـ webhook مباشرة
-    const paymentUrl = `http://localhost:${config.server.port}/api/payment/mock-complete?sessionId=${sessionId}&orderId=${orderId}`;
+    const baseUrl = config.server.env === 'production' ? '' : `http://localhost:${config.server.port}`;
+    const paymentUrl = `${baseUrl}/api/payments/mock-complete?sessionId=${sessionId}&orderId=${orderId}`;
     
     console.log(`🎭 Mock Payment Created:
       Order: ${orderId}

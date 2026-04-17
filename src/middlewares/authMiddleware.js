@@ -110,63 +110,8 @@ const optionalAuth = asyncHandler(async (req, _res, next) => {
   next();
 });
 
-/**
- * نحددو عدد الطلبات لكل مستخدم
- * هذا rate limiting بسيط في الذاكرة
- */
-const userRateLimiter = (maxRequests = 100, windowMs = 60000) => {
-  const requests = new Map();
-  
-  // ننظفو الذاكرة كل دقيقة
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, data] of requests.entries()) {
-      if (now - data.startTime > windowMs) {
-        requests.delete(key);
-      }
-    }
-  }, windowMs);
-  
-  return (req, _res, next) => {
-    const key = req.user ? req.user._id.toString() : req.ip;
-    const now = Date.now();
-    
-    if (!requests.has(key)) {
-      requests.set(key, { count: 1, startTime: now });
-      return next();
-    }
-    
-    const data = requests.get(key);
-    
-    if (now - data.startTime > windowMs) {
-      // نبدأو فترة جديدة
-      requests.set(key, { count: 1, startTime: now });
-      return next();
-    }
-    
-    data.count++;
-    
-    if (data.count > maxRequests) {
-      // نسجلو التجاوز
-      AuditLog.log({
-        userId: req.user?._id,
-        action: 'RATE_LIMIT_EXCEEDED',
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        resource: req.originalUrl,
-        result: 'failure',
-      });
-      
-      return next(new AppError('طلبات ياسر! استنى شويا.', 429));
-    }
-    
-    next();
-  };
-};
-
 module.exports = {
   protect,
   authorize,
   optionalAuth,
-  userRateLimiter,
 };

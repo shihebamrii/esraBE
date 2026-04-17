@@ -234,10 +234,32 @@ const getMyDownloads = asyncHandler(async (req, res, next) => {
   let itemsMap = new Map();
 
   for (const order of orders) {
+    // 1. العناصر المباشرة في الطلب
     for (const item of order.items) {
       const key = `${item.type}_${item.itemId.toString()}`;
       if (!itemsMap.has(key)) {
-        itemsMap.set(key, { ...item.toObject(), orderId: order._id, purchaseDate: order.paidAt || order.createdAt });
+        itemsMap.set(key, { 
+          type: item.type,
+          itemId: item.itemId,
+          title: item.title,
+          orderId: order._id, 
+          purchaseDate: order.paidAt || order.createdAt 
+        });
+      }
+    }
+
+    // 2. العناصر اللي عندها توكنز (مثل الصور داخل باك collection)
+    if (order.downloadTokens && order.downloadTokens.length > 0) {
+      for (const token of order.downloadTokens) {
+        const key = `${token.itemType}_${token.itemId.toString()}`;
+        if (!itemsMap.has(key)) {
+          itemsMap.set(key, {
+            type: token.itemType,
+            itemId: token.itemId,
+            orderId: order._id,
+            purchaseDate: order.paidAt || order.createdAt
+          });
+        }
       }
     }
   }
@@ -298,7 +320,8 @@ const getMyDownloads = asyncHandler(async (req, res, next) => {
       id: d.itemId.toString() + '_' + d.orderId.toString(),
       itemId: d.itemId,
       title: itemData?.title || d.title || 'Unknown Item',
-      type: d.type === 'photo' ? 'Photo' : d.type === 'pack' ? 'Pack' : 'Video',
+      type: d.type === 'photo' ? 'Photo' : d.type === 'pack' ? (itemData?.type === 'membership' ? 'Membership' : 'Pack') : 'Video',
+      packType: itemData?.type, // 'collection' or 'membership'
       purchaseDate: d.purchaseDate,
       size,
       format,

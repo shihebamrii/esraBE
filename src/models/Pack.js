@@ -47,6 +47,12 @@ const packSchema = new mongoose.Schema(
       ref: 'Photo',
     }],
 
+    // المحتوى (فيديو/بودكاست) في الباك
+    contentIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Content',
+    }],
+
     // السعر بالدينار التونسي
     priceTND: {
       type: Number,
@@ -121,13 +127,31 @@ packSchema.virtual('photoCount').get(function () {
 });
 
 /**
+ * عدد المحتويات المتنوعة في الباك
+ */
+packSchema.virtual('contentCount').get(function () {
+  return this.contentIds ? this.contentIds.length : 0;
+});
+
+/**
  * التوفير مقارنة بشراء الصور منفردة
  * (محتاج populate الصور باش يحسب)
  */
 packSchema.virtual('savings').get(function () {
-  // لو الصور محملين، نحسبو التوفير
+  let individualTotal = 0;
+  let calculationPossible = false;
+  
   if (this.populated('photoIds') && Array.isArray(this.photoIds)) {
-    const individualTotal = this.photoIds.reduce((sum, photo) => sum + (photo.priceTND || 0), 0);
+    individualTotal += this.photoIds.reduce((sum, photo) => sum + (photo.priceTND || 0), 0);
+    calculationPossible = true;
+  }
+  
+  if (this.populated('contentIds') && Array.isArray(this.contentIds)) {
+    individualTotal += this.contentIds.reduce((sum, content) => sum + (content.price || 0), 0);
+    calculationPossible = true;
+  }
+  
+  if (calculationPossible) {
     return Math.max(0, individualTotal - this.priceTND);
   }
   return null;

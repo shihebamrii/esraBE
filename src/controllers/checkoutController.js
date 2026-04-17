@@ -325,8 +325,54 @@ const downloadPurchasedItem = asyncHandler(async (req, res, next) => {
       return next(new AppError('ملف الصورة الأصلي غير موجود!', 404));
     }
   } else if (tokenDoc.itemType === 'pack') {
-    // TODO: نحتاج نعملو ZIP للباك
-    return next(new AppError('تحميل الباكات قريبا!', 501));
+    const pack = await Pack.findById(tokenDoc.itemId).populate('photoIds');
+    if (!pack) return next(new AppError('الباك ما لقيناهش!', 404));
+
+    if (pack.type !== 'collection') {
+      return next(new AppError('هذا الباك لا يدعم التحميل المباشر!', 400));
+    }
+
+    // نبعثو ZIP مباشرة
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(pack.title)}.zip"`,
+    });
+
+    const archiver = require('archiver');
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    archive.on('error', (err) => {
+      throw err;
+    });
+
+    archive.pipe(res);
+
+    const { getDownloadStream } = require('../services/storageService');
+
+    for (const photo of pack.photoIds) {
+      const fileId = photo.highResFileId;
+      if (fileId) {
+        const stream = getDownloadStream(fileId);
+        const filename = photo.fileInfo?.highRes?.filename || `photo_${photo._id}.jpg`;
+        archive.append(stream, { name: filename });
+      }
+    }
+
+    await archive.finalize();
+    
+    // تسجيل التحميل (لا حاجة لـ redirect)
+    await AuditLog.log({
+      userId: order.userId,
+      action: 'PACK_DOWNLOAD',
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      resource: `Pack:${pack._id}`,
+      result: 'success',
+    });
+    
+    // نستهلكو التوكن ونخرجوا
+    await order.useDownloadToken(token);
+    return;
   } else if (tokenDoc.itemType === 'content') {
     const content = await Content.findById(tokenDoc.itemId);
     if (!content) return next(new AppError('المحتوى ما لقيناهش!', 404));
