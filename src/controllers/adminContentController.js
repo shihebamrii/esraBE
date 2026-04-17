@@ -6,6 +6,7 @@
 const { Content, AuditLog } = require('../models');
 const { uploadToGridFS, deleteFromGridFS } = require('../services/storageService');
 const { createThumbnail } = require('../services/imageProcessor');
+const { ensureCompatibleCodec } = require('../services/videoProcessor');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { notifyAllUsers, notifyUser } = require('../services/notificationService');
@@ -25,24 +26,33 @@ const uploadContent = asyncHandler(async (req, res, next) => {
   const mainFile = req.files.file[0];
   const thumbnailFile = req.files.thumbnail?.[0];
 
-  // نحددو نوع المحتوى من الـ MIME type
+  // نحددوا نوع المحتوى من الـ MIME type
   let contentType;
+  let finalVideoBuffer = mainFile.buffer;
+  let videoMetadata = {};
+
   if (mainFile.mimetype.startsWith('video/')) {
     contentType = mainFile.mimetype.includes('reel') ? 'reel' : 'video';
+    
+    // Transcode if HEVC
+    const processed = await ensureCompatibleCodec(mainFile.buffer, mainFile.originalname);
+    finalVideoBuffer = processed.buffer;
+    videoMetadata = processed.info;
   } else if (mainFile.mimetype.startsWith('audio/')) {
     contentType = 'audio';
   } else {
     return next(new AppError('نوع الملف مش مدعوم!', 400));
   }
 
-  // نرفعو الملف الرئيسي لـ GridFS
+  // نرفعوا الملف الرئيسي لـ GridFS
   const fileFileId = await uploadToGridFS(
-    mainFile.buffer,
+    finalVideoBuffer,
     mainFile.originalname,
     mainFile.mimetype,
     {
       uploadedBy: req.user._id,
       type: 'content',
+      codec: videoMetadata.codec,
     }
   );
 
@@ -113,7 +123,11 @@ const uploadContent = asyncHandler(async (req, res, next) => {
     fileInfo: {
       filename: mainFile.originalname,
       contentType: mainFile.mimetype,
-      size: mainFile.size,
+      size: finalVideoBuffer.length,
+      duration: videoMetadata.duration || duration,
+      width: videoMetadata.width,
+      height: videoMetadata.height,
+      codec: videoMetadata.codec,
     },
   });
 

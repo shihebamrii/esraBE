@@ -6,6 +6,7 @@
 const { Photo, Pack, AuditLog } = require('../models');
 const { uploadToGridFS, getFileInfo, getDownloadStream } = require('../services/storageService');
 const { createLowResVersion, addTiledWatermark, getImageInfo } = require('../services/imageProcessor');
+const { ensureCompatibleCodec } = require('../services/videoProcessor');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { safeParseJSON } = require('../utils/safeParser');
@@ -273,22 +274,33 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
 
   const isVideo = highResFile.mimetype.startsWith('video/');
   
+  let finalHighResBuffer = highResFile.buffer;
+  let videoMetadata = {};
+
+  if (isVideo) {
+    // Transcode if HEVC
+    const processed = await ensureCompatibleCodec(highResFile.buffer, highResFile.originalname);
+    finalHighResBuffer = processed.buffer;
+    videoMetadata = processed.info;
+  }
+
   if (isVideo && !lowResFile) {
     return next(new AppError('للفيديو، الرجاء رفع صورة مصغرة (Thumbnail)!', 400));
   }
 
-  let highResInfo = {};
+  let highResInfo = isVideo ? videoMetadata : {};
   if (!isVideo) {
     highResInfo = await getImageInfo(highResFile.buffer);
   }
 
   const highResFileId = await uploadToGridFS(
-    highResFile.buffer,
+    finalHighResBuffer,
     highResFile.originalname,
     highResFile.mimetype,
     {
       uploadedBy: req.user._id,
       type: isVideo ? 'photo-video' : 'photo-highres',
+      codec: videoMetadata.codec,
       ...highResInfo,
     }
   );
@@ -362,7 +374,15 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     approvalStatus: 'pending', // دائما معلقة للمستخدم
     tags: finalTags,
     fileInfo: {
-      highRes: { filename: highResFile.originalname, contentType: highResFile.mimetype, size: highResFile.size, width: highResInfo.width, height: highResInfo.height },
+      highRes: { 
+        filename: highResFile.originalname, 
+        contentType: highResFile.mimetype, 
+        size: finalHighResBuffer.length, 
+        width: highResInfo.width, 
+        height: highResInfo.height,
+        duration: videoMetadata.duration,
+        codec: videoMetadata.codec
+      },
       lowRes: { filename: `lowres_${highResFile.originalname}`, contentType: 'image/jpeg', size: watermarkedBuffer.length, width: lowResInfo.width, height: lowResInfo.height },
     },
   });
