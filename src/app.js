@@ -41,7 +41,8 @@ app.use(cors({
   origin: config.cors.origins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language', 'Range'],
+  exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Type'],
 }));
 
 // Rate Limiting (Disabled as per user request)

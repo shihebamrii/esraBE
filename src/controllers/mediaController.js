@@ -29,6 +29,13 @@ const streamMedia = asyncHandler(async (req, res, next) => {
   // نشوفو إذا عندنا Range header
   const range = req.headers.range;
 
+  // Set CORS headers explicitly for cross-origin video/audio playback
+  const origin = req.headers.origin;
+  if (origin) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Access-Control-Allow-Credentials', 'true');
+  }
+
   if (range) {
     // Partial Content - للـ streaming
     const parts = range.replace(/bytes=/, '').split('-');

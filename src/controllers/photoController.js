@@ -50,7 +50,7 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
   const total = await Photo.countDocuments(query);
 
   const photos = await Photo.find(query)
-    .select('title description governorate landscapeType priceTND pricePersonalTND priceCommercialTND lowResFileId imageUrl tags createdAt')
+    .select('title description governorate landscapeType mediaType priceTND pricePersonalTND priceCommercialTND lowResFileId highResFileId imageUrl tags createdAt')
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));
@@ -61,6 +61,10 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
       obj.previewUrl = photo.imageUrl;
     } else {
       obj.previewUrl = `/api/photos/${photo._id}/preview`;
+    }
+    // For video-type items, include the high-res URL for the video player
+    if (photo.mediaType === 'video' && photo.highResFileId) {
+      obj.highResUrl = `/api/media/${photo.highResFileId}`;
     }
     return obj;
   });
@@ -95,6 +99,10 @@ const getPhoto = asyncHandler(async (req, res, next) => {
     obj.previewUrl = photo.imageUrl;
   } else {
     obj.previewUrl = `/api/photos/${photo._id}/preview`;
+  }
+  // For video-type items, include the high-res URL for the video player
+  if (photo.mediaType === 'video' && photo.highResFileId) {
+    obj.highResUrl = `/api/media/${photo.highResFileId}`;
   }
 
   res.status(200).json({
