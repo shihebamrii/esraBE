@@ -16,6 +16,8 @@ const Favorite = require('./Favorite');
 const UserPack = require('./UserPack');
 const Playlist = require('./Playlist');
 const Inquiry = require('./Inquiry');
+const Notification = require('./Notification');
+const PushSubscription = require('./PushSubscription');
 
 module.exports = {
   User,
@@ -31,4 +33,6 @@ module.exports = {
   UserPack,
   Playlist,
   Inquiry,
+  Notification,
+  PushSubscription,
 };
