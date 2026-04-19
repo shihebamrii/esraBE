@@ -209,13 +209,150 @@ const getAdminStats = asyncHandler(async (req, res, next) => {
   const videoCount = await Content.countDocuments({ type: 'video' });
   const photoCount = await Photo.countDocuments();
 
+  // 4. Total Downloads
+  const contentDownloads = await Content.aggregate([
+    { $group: { _id: null, total: { $sum: { $ifNull: ['$downloads', 0] } } } }
+  ]);
+  const photoDownloads = await Photo.aggregate([
+    { $group: { _id: null, total: { $sum: { $ifNull: ['$downloads', 0] } } } }
+  ]);
+  const orderDownloads = orders.reduce((sum, o) => sum + (o.items?.length || 0), 0);
+  const totalDownloads =
+    (contentDownloads[0]?.total || 0) +
+    (photoDownloads[0]?.total || 0) +
+    orderDownloads;
+
+  // 5. Monthly Revenue (last 6 months)
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  const monthlyRevenue = await Order.aggregate([
+    { $match: { paymentStatus: 'paid', createdAt: { $gte: sixMonthsAgo } } },
+    { $group: {
+      _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+      revenue: { $sum: '$total' },
+      orders: { $sum: 1 }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ]);
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Build last 6 months array
+  const revenueChart = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const found = monthlyRevenue.find(m => m._id.year === year && m._id.month === month);
+    revenueChart.push({
+      month: monthNames[month - 1],
+      revenue: found ? Math.round(found.revenue) : 0,
+      orders: found ? found.orders : 0,
+    });
+  }
+
+  // 6. Monthly Downloads (last 6 months) - using order item counts as proxy
+  const monthlyDownloads = await Order.aggregate([
+    { $match: { paymentStatus: 'paid', createdAt: { $gte: sixMonthsAgo } } },
+    { $group: {
+      _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+      downloads: { $sum: { $size: { $ifNull: ['$items', []] } } }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ]);
+
+  const downloadsChart = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const found = monthlyDownloads.find(m => m._id.year === year && m._id.month === month);
+    downloadsChart.push({
+      month: monthNames[month - 1],
+      downloads: found ? found.downloads : 0,
+    });
+  }
+
+  // 7. Content type breakdown
+  const contentBreakdown = await Content.aggregate([
+    { $group: { _id: '$type', count: { $sum: 1 } } }
+  ]);
+  const contentTypes = contentBreakdown.map(c => ({ name: c._id, value: c.count }));
+  // Add photos
+  if (photoCount > 0) contentTypes.push({ name: 'photo', value: photoCount });
+
+  // 8. Recent orders (last 5)
+  const recentOrders = await Order.find({ paymentStatus: 'paid' })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .populate('userId', 'name email')
+    .lean();
+
+  const recentOrdersFormatted = recentOrders.map(o => ({
+    id: o._id,
+    customer: o.userId?.name || o.userId?.email || 'Unknown',
+    email: o.userId?.email || '',
+    total: o.total || 0,
+    items: o.items?.length || 0,
+    date: o.createdAt,
+    status: o.paymentStatus,
+  }));
+
+  // 9. Top content by downloads
+  const topContent = await Content.find()
+    .sort({ downloads: -1 })
+    .limit(5)
+    .select('title type downloads views')
+    .lean();
+
+  const topPhotos = await Photo.find()
+    .sort({ downloads: -1 })
+    .limit(3)
+    .select('title downloads purchases')
+    .lean();
+
+  // 10. New users per month (last 6 months)
+  const monthlyUsers = await User.aggregate([
+    { $match: { createdAt: { $gte: sixMonthsAgo } } },
+    { $group: {
+      _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+      users: { $sum: 1 }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ]);
+
+  const usersChart = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const found = monthlyUsers.find(m => m._id.year === year && m._id.month === month);
+    usersChart.push({
+      month: monthNames[month - 1],
+      users: found ? found.users : 0,
+    });
+  }
+
   res.status(200).json({
     status: 'success',
     data: {
       totalRevenue: `${totalRevenue.toLocaleString()} TND`,
       activeUsers: totalUsers,
       videoCount,
-      photoCount
+      photoCount,
+      totalDownloads,
+      revenueChart,
+      downloadsChart,
+      usersChart,
+      contentTypes,
+      recentOrders: recentOrdersFormatted,
+      topContent,
+      topPhotos,
     }
   });
 });
@@ -431,6 +568,28 @@ const getMyContent = asyncHandler(async (req, res, _next) => {
   });
 });
 
+/**
+ * @desc    Track a download click (increment download counter on photo/content)
+ * @route   POST /api/dashboard/track-download
+ * @access  Private (User)
+ */
+const trackDownload = asyncHandler(async (req, res, next) => {
+  const { itemId, itemType } = req.body;
+
+  if (!itemId || !itemType) {
+    return res.status(400).json({ status: 'error', message: 'itemId and itemType are required' });
+  }
+
+  if (itemType === 'photo') {
+    await Photo.findByIdAndUpdate(itemId, { $inc: { downloads: 1 } });
+  } else if (itemType === 'content') {
+    await Content.findByIdAndUpdate(itemId, { $inc: { downloads: 1 } });
+  }
+  // Pack downloads tracked at order level — no per-pack counter needed
+
+  res.status(200).json({ status: 'success', message: 'Download tracked' });
+});
+
 module.exports = {
   getUserUploadStats,
   getRecentActivity,
@@ -439,5 +598,6 @@ module.exports = {
   getAdminStats,
   getMyDownloads,
   getMyPhotos,
-  getMyContent
+  getMyContent,
+  trackDownload,
 };

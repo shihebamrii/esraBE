@@ -144,6 +144,12 @@ const photoSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // عدد التحميلات الفعلية (نقرات على زر التحميل)
+    downloads: {
+      type: Number,
+      default: 0,
+    },
+
     // حالة الموافقة (للصور المرفوعة من المستخدمين)
     approvalStatus: {
       type: String,

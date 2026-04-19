@@ -26,5 +26,6 @@ router.get('/downloads', dashboardController.getMyDownloads);
 router.get('/my-photos', dashboardController.getMyPhotos);
 router.get('/my-content', dashboardController.getMyContent);
 router.get('/packs', dashboardController.getUserPacks);
+router.post('/track-download', dashboardController.trackDownload);
 
 module.exports = router;
