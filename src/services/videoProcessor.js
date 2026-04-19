@@ -5,6 +5,10 @@
 
 const ffmpeg = require('fluent-ffmpeg');
 const { Readable, PassThrough } = require('stream');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+const crypto = require('crypto');
 const AppError = require('../utils/AppError');
 
 /**
@@ -14,10 +18,16 @@ const AppError = require('../utils/AppError');
  */
 const getVideoMetadata = (buffer) => {
   return new Promise((resolve, reject) => {
-    const stream = Readable.from(buffer);
-    ffmpeg(stream)
+    const tempInput = path.join(os.tmpdir(), `meta_${crypto.randomBytes(8).toString('hex')}.mp4`);
+    fs.writeFileSync(tempInput, buffer);
+
+    ffmpeg(tempInput)
       .ffprobe((err, metadata) => {
-        if (err) return reject(new AppError('فشل تحليل بيانات الفيديو', 500));
+        if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+        if (err) {
+          console.error('ffprobe error:', err);
+          return reject(new AppError('فشل تحليل بيانات الفيديو', 500));
+        }
         
         const videoStream = metadata.streams.find(s => s.codec_type === 'video');
         resolve({
@@ -52,35 +62,43 @@ const ensureCompatibleCodec = async (buffer, originalName) => {
     console.log(`Transcoding ${originalName} from HEVC to H.264 for compatibility...`);
 
     return new Promise((resolve, reject) => {
-      const inputStream = Readable.from(buffer);
-      const outputStream = new PassThrough();
-      const chunks = [];
+      const uniqueId = crypto.randomBytes(8).toString('hex');
+      const tempInput = path.join(os.tmpdir(), `input_${uniqueId}.mp4`);
+      const tempOutput = path.join(os.tmpdir(), `output_${uniqueId}.mp4`);
 
-      outputStream.on('data', (chunk) => chunks.push(chunk));
-      outputStream.on('end', () => {
-        const transcodeBuffer = Buffer.concat(chunks);
-        resolve({ 
-          buffer: transcodeBuffer, 
-          info: { ...metadata, codec: 'h264' }, 
-          transcoded: true 
-        });
-      });
-      outputStream.on('error', (err) => reject(new AppError('فشل تحويل فيديو HEVC', 500)));
+      fs.writeFileSync(tempInput, buffer);
 
-      ffmpeg(inputStream)
+      ffmpeg(tempInput)
         .format('mp4')
         .videoCodec('libx264')
         .audioCodec('aac')
         .outputOptions([
           '-preset fast',
           '-crf 23',
-          '-movflags frag_keyframe+empty_moov'
+          '-movflags +faststart'
         ])
+        .on('end', () => {
+          try {
+            const transcodeBuffer = fs.readFileSync(tempOutput);
+            if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+            if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+            resolve({ 
+              buffer: transcodeBuffer, 
+              info: { ...metadata, codec: 'h264' }, 
+              transcoded: true 
+            });
+          } catch (err) {
+            console.error('File read error:', err);
+            reject(new AppError('فشل قراءة الملف المحول', 500));
+          }
+        })
         .on('error', (err) => {
           console.error('FFmpeg error:', err);
+          if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+          if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
           reject(new AppError('خطأ أثناء تحويل الفيديو', 500));
         })
-        .pipe(outputStream);
+        .save(tempOutput);
     });
   } catch (error) {
     console.error('Video processing error:', error);

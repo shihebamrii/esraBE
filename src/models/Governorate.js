@@ -81,7 +81,6 @@ const governorateSchema = new mongoose.Schema(
 // Indexes / الفهارس
 // ============================================
 
-governorateSchema.index({ slug: 1 });
 governorateSchema.index({ region: 1 });
 
 // ============================================

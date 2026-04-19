@@ -230,6 +230,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     'priceCommercialTND',
     'watermark',
     'attributionText',
+    'mediaType',
     'tags',
   ];
 

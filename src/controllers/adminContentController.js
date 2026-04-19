@@ -223,6 +223,8 @@ const updateContent = asyncHandler(async (req, res, next) => {
     'priceCommercial',
     'licenseInfo',
     'visibility',
+    'type',
+    'duration',
     'metadata',
   ];
 
@@ -232,7 +234,7 @@ const updateContent = asyncHandler(async (req, res, next) => {
       // للـ arrays نحاولو نـ parse
       if (['authors', 'themes', 'tags', 'metadata'].includes(field) && typeof req.body[field] === 'string') {
         updates[field] = safeParseJSON(req.body[field], field === 'metadata' ? {} : []);
-      } else if (['price', 'pricePersonal', 'priceCommercial'].includes(field)) {
+      } else if (['price', 'pricePersonal', 'priceCommercial', 'duration'].includes(field)) {
         updates[field] = parseFloat(req.body[field]) || 0;
       } else {
         updates[field] = req.body[field];
