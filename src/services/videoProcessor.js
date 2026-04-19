@@ -4,6 +4,13 @@
  */
 
 const ffmpeg = require('fluent-ffmpeg');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+
+// Set paths to our bundled binaries so clients don't need ffmpeg installed globally!
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+ffmpeg.setFfprobePath(ffprobeInstaller.path);
+
 const { Readable, PassThrough } = require('stream');
 const path = require('path');
 const os = require('os');
