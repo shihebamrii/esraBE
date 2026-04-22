@@ -16,6 +16,7 @@ const getAllPlaylists = asyncHandler(async (req, res, next) => {
 
   const query = {};
   if (type) query.type = type;
+  if (req.query.section) query.section = req.query.section;
   if (search) {
     query.$or = [
       { title: { $regex: search, $options: 'i' } },
@@ -26,6 +27,7 @@ const getAllPlaylists = asyncHandler(async (req, res, next) => {
   const total = await Playlist.countDocuments(query);
   const playlists = await Playlist.find(query)
     .populate('items.contentId', 'title type thumbnailFileId')
+    .populate('photoItems.photoId', 'title mediaType lowResFileId governorate landscapeType')
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));
@@ -46,14 +48,16 @@ const getAllPlaylists = asyncHandler(async (req, res, next) => {
  * @access  Private (Admin)
  */
 const createPlaylist = asyncHandler(async (req, res, next) => {
-  const { title, description, type, items, themes, region, tags, thumbnailFileId } = req.body;
+  const { title, description, type, section, items, photoItems, themes, region, tags, thumbnailFileId } = req.body;
 
   // ننشئو البلاي ليست
   const playlist = await Playlist.create({
     title,
     description,
     type: type || 'series',
+    section: section || 'impact',
     items: items || [],
+    photoItems: photoItems || [],
     themes,
     region,
     tags,
@@ -84,7 +88,7 @@ const createPlaylist = asyncHandler(async (req, res, next) => {
  */
 const updatePlaylist = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const allowedUpdates = ['title', 'description', 'type', 'items', 'themes', 'region', 'tags', 'thumbnailFileId', 'isActive'];
+  const allowedUpdates = ['title', 'description', 'type', 'section', 'items', 'photoItems', 'themes', 'region', 'tags', 'thumbnailFileId', 'isActive'];
   
   const updates = {};
   for (const field of allowedUpdates) {

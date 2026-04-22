@@ -17,6 +17,10 @@ router.get('/', validate(photoValidation.query, 'query'), photoController.getPho
 // رفع صورة (للمستخدم العادي، تحتاج موافقة)
 router.post('/upload', protect, mediaWithPreviewUpload, handleMulterError, photoController.uploadPhoto);
 
+// صور المستخدم الحالي - GET, PUT, DELETE
+router.get('/my-uploads', protect, photoController.getMyPhotos);
+router.put('/my-uploads/:id', protect, validateObjectId('id'), photoController.updateMyPhoto);
+router.delete('/my-uploads/:id', protect, validateObjectId('id'), photoController.deleteMyPhoto);
 
 // الولايات المتوفرة
 router.get('/governorates', photoController.getGovernorates);

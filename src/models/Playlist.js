@@ -22,6 +22,13 @@ const playlistSchema = new mongoose.Schema(
       maxlength: [5000, 'الوصف طويل برشا'],
     },
 
+    // القسم (impact أو tounesna)
+    section: {
+      type: String,
+      enum: ['impact', 'tounesna'],
+      default: 'impact',
+    },
+
     // نوع البلاي ليست
     type: {
       type: String,
@@ -30,11 +37,24 @@ const playlistSchema = new mongoose.Schema(
       default: 'series',
     },
 
-    // المحتوى الي فيها (مرتب)
+    // المحتوى الي فيها (مرتب) - لـ impact
     items: [{
       contentId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Content',
+        required: true,
+      },
+      order: {
+        type: Number,
+        default: 0,
+      }
+    }],
+
+    // صور تونسنا الي فيها (مرتب) - لـ tounesna
+    photoItems: [{
+      photoId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Photo',
         required: true,
       },
       order: {
@@ -97,6 +117,7 @@ const playlistSchema = new mongoose.Schema(
 
 playlistSchema.index({ title: 'text', description: 'text', tags: 'text' });
 playlistSchema.index({ type: 1 });
+playlistSchema.index({ section: 1 });
 playlistSchema.index({ isActive: 1 });
 playlistSchema.index({ createdBy: 1 });
 

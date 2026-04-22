@@ -32,7 +32,7 @@ const contentSchema = new mongoose.Schema(
     type: {
       type: String,
       required: [true, 'نوع المحتوى ضروري!'],
-      enum: ['video', 'audio', 'reel', 'documentary', 'podcast', 'photo'],
+      trim: true,
     },
 
     // المواضيع / الثيمات

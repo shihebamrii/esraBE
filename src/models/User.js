@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // صورة البروفايل - مرجع GridFS
+    profilePictureFileId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+
     // الباسوورد المشفر
     passwordHash: {
       type: String,

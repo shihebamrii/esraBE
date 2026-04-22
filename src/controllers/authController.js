@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const { User, AuditLog, Pack, UserPack } = require('../models');
+const { uploadToGridFS, deleteFromGridFS } = require('../services/storageService');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const config = require('../config');
@@ -382,6 +383,7 @@ const getMe = asyncHandler(async (req, res, _next) => {
         phone: req.user.phone,
         role: req.user.role,
         locale: req.user.locale,
+        profilePictureFileId: req.user.profilePictureFileId,
         createdAt: req.user.createdAt,
         lastLogin: req.user.lastLogin,
       },
@@ -437,6 +439,7 @@ const updateMe = asyncHandler(async (req, res, next) => {
         phone: user.phone,
         role: user.role,
         locale: user.locale,
+        profilePictureFileId: user.profilePictureFileId,
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
       },
@@ -506,6 +509,54 @@ const logout = asyncHandler(async (req, res, _next) => {
   });
 });
 
+/**
+ * @desc    رفع صورة البروفايل
+ * @route   POST /api/auth/me/picture
+ * @access  Private
+ */
+const uploadProfilePicture = asyncHandler(async (req, res, next) => {
+  if (!req.file) {
+    return next(new AppError('الصورة ضرورية!', 400));
+  }
+
+  const user = await User.findById(req.user._id);
+
+  // Delete old profile picture if exists
+  if (user.profilePictureFileId) {
+    await deleteFromGridFS(user.profilePictureFileId);
+  }
+
+  // Upload new profile picture
+  const fileId = await uploadToGridFS(
+    req.file.buffer,
+    `profile_${user._id}_${Date.now()}.jpg`,
+    req.file.mimetype,
+    {
+      uploadedBy: user._id,
+      type: 'profile',
+    }
+  );
+
+  user.profilePictureFileId = fileId;
+  await user.save({ validateBeforeSave: false });
+
+  await AuditLog.log({
+    userId: user._id,
+    action: 'AUTH_UPLOAD_PROFILE_PICTURE',
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    result: 'success',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'تم رفع الصورة بنجاح!',
+    data: {
+      profilePictureFileId: fileId,
+    },
+  });
+});
+
 module.exports = {
   register,
   login,
@@ -516,4 +567,5 @@ module.exports = {
   updateMe,
   deleteMe,
   logout,
+  uploadProfilePicture,
 };

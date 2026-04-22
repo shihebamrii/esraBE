@@ -12,15 +12,17 @@ const AppError = require('../utils/AppError');
  * @access  Public
  */
 const getAllPlaylists = asyncHandler(async (req, res, next) => {
-  const { type, region, theme } = req.query;
+  const { type, region, theme, section } = req.query;
 
   const query = { isActive: true };
   if (type) query.type = type;
   if (region) query.region = region;
   if (theme) query.themes = theme;
+  if (section) query.section = section;
 
   const playlists = await Playlist.find(query)
     .populate('items.contentId', 'title type thumbnailFileId duration rights price')
+    .populate('photoItems.photoId', 'title mediaType lowResFileId highResFileId governorate landscapeType pricePersonalTND priceCommercialTND')
     .sort({ createdAt: -1 });
 
   res.status(200).json({
@@ -39,7 +41,8 @@ const getPlaylist = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
   const playlist = await Playlist.findOne({ _id: id, isActive: true })
-    .populate('items.contentId', 'title type description thumbnailFileId fileFileId duration rights price authors');
+    .populate('items.contentId', 'title type description thumbnailFileId fileFileId duration rights price authors')
+    .populate('photoItems.photoId', 'title description mediaType lowResFileId highResFileId governorate landscapeType pricePersonalTND priceCommercialTND tags');
 
   if (!playlist) {
     return next(new AppError('قائمة التشغيل مش موجودة!', 404));

@@ -102,7 +102,7 @@ const uploadContent = asyncHandler(async (req, res, next) => {
     title,
     description,
     authors: safeParseJSON(authors),
-    type: type || contentType,
+    type: type || contentType, // Use admin-provided type if available, otherwise detect from MIME
     themes: safeParseJSON(themes),
     region,
     tags: safeParseJSON(tags),

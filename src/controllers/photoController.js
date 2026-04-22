@@ -27,6 +27,7 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
     freeOnly,
     approvalStatus,
     sort = '-createdAt',
+    source, // 'official' or 'community' or 'all'
   } = req.query;
 
   // نبنيو الكويري
@@ -48,16 +49,84 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
   
   if (freeOnly === 'true') query.priceTND = 0;
 
-  const total = await Photo.countDocuments(query);
+  // Build aggregation pipeline for source filtering
+  let aggregationPipeline = [{ $match: query }];
 
-  const photos = await Photo.find(query)
-    .select('title description governorate landscapeType mediaType priceTND pricePersonalTND priceCommercialTND lowResFileId highResFileId imageUrl tags createdAt')
-    .sort(sort)
-    .skip((page - 1) * limit)
-    .limit(parseInt(limit, 10));
+  // Add lookup to get user info for source filtering
+  if (source && source !== 'all') {
+    aggregationPipeline.push(
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'createdBy',
+          foreignField: '_id',
+          as: 'creator',
+        },
+      },
+      {
+        $match: {
+          'creator.role': source === 'official' ? 'admin' : { $ne: 'admin' },
+        },
+      }
+    );
+  }
+
+  // Count total documents
+  const countPipeline = [...aggregationPipeline, { $count: 'total' }];
+  const countResult = await Photo.aggregate(countPipeline);
+  const total = countResult[0]?.total || 0;
+
+  // Add pagination and projection
+  aggregationPipeline.push(
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'createdBy',
+        foreignField: '_id',
+        as: 'creator',
+      },
+    },
+    {
+      $addFields: {
+        source: {
+          $cond: {
+            if: { $eq: [{ $arrayElemAt: ['$creator.role', 0] }, 'admin'] },
+            then: 'official',
+            else: 'community',
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        title: 1,
+        description: 1,
+        governorate: 1,
+        landscapeType: 1,
+        mediaType: 1,
+        priceTND: 1,
+        pricePersonalTND: 1,
+        priceCommercialTND: 1,
+        lowResFileId: 1,
+        highResFileId: 1,
+        imageUrl: 1,
+        tags: 1,
+        createdAt: 1,
+        createdBy: 1,
+        source: 1,
+        'creator.name': 1,
+        'creator.role': 1,
+      },
+    },
+    { $sort: sort.startsWith('-') ? { [sort.slice(1)]: -1 } : { [sort]: 1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: parseInt(limit, 10) }
+  );
+
+  const photos = await Photo.aggregate(aggregationPipeline);
 
   const photosWithUrls = photos.map(photo => {
-    const obj = photo.toObject();
+    const obj = { ...photo };
     if (photo.imageUrl) {
       obj.previewUrl = photo.imageUrl;
     } else {
@@ -66,6 +135,10 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
     // For video-type items, include the high-res URL for the video player
     if (photo.mediaType === 'video' && photo.highResFileId) {
       obj.highResUrl = `/api/media/${photo.highResFileId}`;
+    }
+    // Add creator info
+    if (photo.creator && photo.creator.length > 0) {
+      obj.creatorName = photo.creator[0].name;
     }
     return obj;
   });
@@ -404,6 +477,147 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
 });
 
 
+/**
+ * @desc    الحصول على صور المستخدم الحالي
+ * @route   GET /api/photos/my-uploads
+ * @access  Private
+ */
+const getMyPhotos = asyncHandler(async (req, res, _next) => {
+  const { page = 1, limit = 20, status, search } = req.query;
+
+  const query = { createdBy: req.user._id };
+  if (status && status !== 'all') query.approvalStatus = status;
+
+  let photosQuery = Photo.find(query)
+    .select('title description governorate landscapeType mediaType priceTND pricePersonalTND priceCommercialTND lowResFileId highResFileId tags createdAt approvalStatus')
+    .sort({ createdAt: -1 });
+
+  if (search) {
+    photosQuery = photosQuery.find({
+      ...query,
+      $or: [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ],
+    });
+  }
+
+  const total = await Photo.countDocuments(query);
+
+  const photos = await photosQuery
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit, 10));
+
+  const photosWithUrls = photos.map(photo => {
+    const obj = photo.toObject();
+    obj.previewUrl = photo.imageUrl || `/api/photos/${photo._id}/preview`;
+    return obj;
+  });
+
+  res.status(200).json({
+    status: 'success',
+    results: photos.length,
+    total,
+    page: parseInt(page, 10),
+    pages: Math.ceil(total / limit),
+    data: { photos: photosWithUrls },
+  });
+});
+
+/**
+ * @desc    تحديث صورة المستخدم (لا يمكن تغيير الصورة نفسها)
+ * @route   PUT /api/photos/my-uploads/:id
+ * @access  Private
+ */
+const updateMyPhoto = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const photo = await Photo.findOne({ _id: id, createdBy: req.user._id });
+
+  if (!photo) {
+    return next(new AppError('الصورة ما لقيناهاش أو ما عندكش صلاحية!', 404));
+  }
+
+  // Can't edit if already approved (optional rule, can be removed)
+  // if (photo.approvalStatus === 'approved') {
+  //   return next(new AppError('لا يمكن تعديل الصورة بعد الموافقة عليها!', 400));
+  // }
+
+  const allowedUpdates = ['title', 'description', 'governorate', 'landscapeType', 'pricePersonalTND', 'priceCommercialTND', 'tags', 'attributionText'];
+
+  const updates = {};
+  for (const field of allowedUpdates) {
+    if (req.body[field] !== undefined) {
+      if (field === 'pricePersonalTND' || field === 'priceCommercialTND') {
+        updates[field] = parseFloat(req.body[field]) || 0;
+      } else if (field === 'tags') {
+        updates[field] = typeof req.body[field] === 'string'
+          ? req.body[field].split(',').map(t => t.trim()).filter(Boolean)
+          : req.body[field];
+      } else {
+        updates[field] = req.body[field];
+      }
+    }
+  }
+
+  const updatedPhoto = await Photo.findByIdAndUpdate(id, updates, {
+    new: true,
+    runValidators: true,
+  });
+
+  await AuditLog.log({
+    userId: req.user._id,
+    action: 'PHOTO_USER_UPDATE',
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    resource: `Photo:${id}`,
+    details: { updates: Object.keys(updates) },
+    result: 'success',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'تم تحديث الصورة بنجاح!',
+    data: { photo: updatedPhoto },
+  });
+});
+
+/**
+ * @desc    حذف صورة المستخدم
+ * @route   DELETE /api/photos/my-uploads/:id
+ * @access  Private
+ */
+const deleteMyPhoto = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const photo = await Photo.findOne({ _id: id, createdBy: req.user._id });
+
+  if (!photo) {
+    return next(new AppError('الصورة ما لقيناهاش أو ما عندكش صلاحية!', 404));
+  }
+
+  // Delete files from GridFS
+  if (photo.highResFileId) await deleteFromGridFS(photo.highResFileId);
+  if (photo.lowResFileId) await deleteFromGridFS(photo.lowResFileId);
+
+  // Delete from database
+  await Photo.findByIdAndDelete(id);
+
+  await AuditLog.log({
+    userId: req.user._id,
+    action: 'PHOTO_USER_DELETE',
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    resource: `Photo:${id}`,
+    result: 'success',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'تم حذف الصورة بنجاح!',
+  });
+});
+
 module.exports = {
   getPhotos,
   getPhoto,
@@ -413,4 +627,7 @@ module.exports = {
   getGovernorates,
   getLandscapeTypes,
   uploadPhoto,
+  getMyPhotos,
+  updateMyPhoto,
+  deleteMyPhoto,
 };
