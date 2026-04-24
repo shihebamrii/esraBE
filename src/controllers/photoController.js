@@ -28,6 +28,7 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
     approvalStatus,
     sort = '-createdAt',
     source, // 'official' or 'community' or 'all'
+    userId, // To filter by creator
   } = req.query;
 
   // نبنيو الكويري
@@ -40,6 +41,14 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
 
   if (governorate) query.governorate = governorate;
   if (landscapeType) query.landscapeType = landscapeType;
+  if (userId) {
+    try {
+      const mongoose = require('mongoose');
+      query.createdBy = new mongoose.Types.ObjectId(userId);
+    } catch(e) {
+      console.log('Error parsing objectId:', e);
+    }
+  }
   
   if (minPrice || maxPrice) {
     query.priceTND = {};
@@ -48,6 +57,8 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
   }
   
   if (freeOnly === 'true') query.priceTND = 0;
+
+  console.log('Query:', query);
 
   // Build aggregation pipeline for source filtering
   let aggregationPipeline = [{ $match: query }];
@@ -162,6 +173,7 @@ const getPhoto = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
   const photo = await Photo.findById(id)
+    .populate('createdBy', 'name role profilePictureFileId')
     .populate('packs', 'title priceTND');
 
   if (!photo) {

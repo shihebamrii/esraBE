@@ -557,6 +557,32 @@ const uploadProfilePicture = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * @desc    الحصول على بيانات مستخدم (للعامة)
+ * @route   GET /api/auth/users/:id
+ * @access  Public
+ */
+const getUser = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+
+  if (!user || !user.isActive) {
+    return next(new AppError('مستخدم غير موجود!', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        role: user.role,
+        profilePictureFileId: user.profilePictureFileId,
+        createdAt: user.createdAt,
+      },
+    },
+  });
+});
+
 module.exports = {
   register,
   login,
@@ -568,4 +594,5 @@ module.exports = {
   deleteMe,
   logout,
   uploadProfilePicture,
+  getUser,
 };

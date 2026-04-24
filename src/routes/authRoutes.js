@@ -66,6 +66,9 @@ router.post(
   authController.resetPassword
 );
 
+// الحصول على بيانات مستخدم للعامة
+router.get('/users/:id', authController.getUser);
+
 // ============================================
 // Protected Routes / راوتز محمية
 // ============================================

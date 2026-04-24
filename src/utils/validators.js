@@ -200,6 +200,8 @@ const photoValidation = {
     freeOnly: Joi.boolean(),
     approvalStatus: Joi.string().valid('pending', 'approved', 'rejected', 'all'),
     sort: Joi.string().valid('createdAt', '-createdAt', 'priceTND', '-priceTND', 'title'),
+    userId: Joi.string(),
+    source: Joi.string().valid('official', 'community', 'all'),
   }),
 };
 
