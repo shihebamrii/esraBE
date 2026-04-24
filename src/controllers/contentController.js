@@ -53,7 +53,8 @@ const getContents = asyncHandler(async (req, res, _next) => {
 
   // نجيبو النتائج
   const contents = await Content.find(query)
-    .select('title type region themes duration thumbnailFileId fileFileId rights price visibility createdAt')
+    .select('title type region themes duration thumbnailFileId fileFileId rights price visibility createdAt metadata authors createdBy')
+    .populate('createdBy', 'name')
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));
