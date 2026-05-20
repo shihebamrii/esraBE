@@ -211,6 +211,22 @@ router.put(
   adminUserController.updateUserStatus
 );
 
+// تحديث بيانات المستخدم
+router.put(
+  '/users/:id',
+  authorize('admin'),
+  validateObjectId('id'),
+  adminUserController.updateUser
+);
+
+// حذف المستخدم
+router.delete(
+  '/users/:id',
+  authorize('admin'),
+  validateObjectId('id'),
+  adminUserController.deleteUser
+);
+
 // ============================================
 // Playlist Routes / راوتز قوائم التشغيل
 // ============================================
@@ -251,6 +267,7 @@ router.delete(
 
 router.get('/inquiries', authorize('admin'), inquiryController.getAllInquiries);
 router.patch('/inquiries/:id', authorize('admin'), inquiryController.updateInquiry);
+router.post('/inquiries/:id/respond', authorize('admin'), inquiryController.respondToInquiry);
 router.delete('/inquiries/:id', authorize('admin'), inquiryController.deleteInquiry);
 
 module.exports = router;

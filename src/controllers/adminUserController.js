@@ -107,8 +107,61 @@ const updateUserStatus = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     status: 'success',
-    message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
+    message: `User ${isActive ? 'unblocked' : 'blocked'} successfully`,
     data: { user },
+  });
+});
+
+/**
+ * @desc    Update user details
+ * @route   PUT /api/admin/users/:id
+ * @access  Private (Admin)
+ */
+const updateUser = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { name, email, role, phone, address, bio } = req.body;
+
+  const updateData = {};
+  if (name !== undefined) updateData.name = name;
+  if (email !== undefined) updateData.email = email;
+  if (role !== undefined) updateData.role = role;
+  if (phone !== undefined) updateData.phone = phone;
+  if (address !== undefined) updateData.address = address;
+  if (bio !== undefined) updateData.bio = bio;
+
+  const user = await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).select('-passwordHash -refreshTokens');
+
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    message: 'User updated successfully',
+    data: { user },
+  });
+});
+
+/**
+ * @desc    Delete a user
+ * @route   DELETE /api/admin/users/:id
+ * @access  Private (Admin)
+ */
+const deleteUser = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const user = await User.findByIdAndDelete(id);
+
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  // Also delete associated user packs, etc. if necessary
+  await UserPack.deleteMany({ userId: id });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'User deleted successfully',
   });
 });
 
@@ -116,4 +169,6 @@ module.exports = {
   getAllUsers,
   updateUserPackQuota,
   updateUserStatus,
+  updateUser,
+  deleteUser,
 };

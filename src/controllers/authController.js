@@ -6,6 +6,7 @@
 const crypto = require('crypto');
 const { User, AuditLog, Pack, UserPack } = require('../models');
 const { uploadToGridFS, deleteFromGridFS } = require('../services/storageService');
+const { sendPasswordResetEmail } = require('../services/emailService');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const config = require('../config');
@@ -16,7 +17,7 @@ const config = require('../config');
  * @access  Public
  */
 const register = asyncHandler(async (req, res, _next) => {
-  const { name, email, password, phone, locale, role } = req.body;
+  const { name, email, password, phone, address, locale, role } = req.body;
 
   // Validate role if provided
   let userRole = 'user';
@@ -30,6 +31,7 @@ const register = asyncHandler(async (req, res, _next) => {
     email,
     passwordHash: password,
     phone,
+    address,
     role: userRole,
     locale: locale || 'ar',
   });
@@ -285,8 +287,13 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
   const resetToken = user.createPasswordResetToken();
   await user.save({ validateBeforeSave: false });
 
-  // TODO: نبعثو إيميل مع الرابط
-  // await sendPasswordResetEmail(user.email, resetToken);
+  // نبعثو إيميل مع الرابط
+  try {
+    await sendPasswordResetEmail(user.email, resetToken);
+  } catch (error) {
+    console.error('Email failed to send:', error);
+    // Continue anyway to not break the flow if email fails
+  }
 
   await AuditLog.log({
     userId: user._id,
@@ -381,6 +388,8 @@ const getMe = asyncHandler(async (req, res, _next) => {
         name: req.user.name,
         email: req.user.email,
         phone: req.user.phone,
+        address: req.user.address,
+        bio: req.user.bio,
         role: req.user.role,
         locale: req.user.locale,
         profilePictureFileId: req.user.profilePictureFileId,
@@ -397,7 +406,7 @@ const getMe = asyncHandler(async (req, res, _next) => {
  * @access  Private
  */
 const updateMe = asyncHandler(async (req, res, next) => {
-  const { name, email, phone, locale, password, newPassword } = req.body;
+  const { name, email, phone, address, bio, locale, password, newPassword } = req.body;
 
   // 1. Get user with password hash if they want to change password
   const user = await User.findById(req.user._id).select('+passwordHash');
@@ -415,6 +424,8 @@ const updateMe = asyncHandler(async (req, res, next) => {
   if (name) user.name = name;
   if (email) user.email = email;
   if (phone !== undefined) user.phone = phone;
+  if (address !== undefined) user.address = address;
+  if (bio !== undefined) user.bio = bio;
   if (locale) user.locale = locale;
 
   await user.save();
@@ -437,6 +448,8 @@ const updateMe = asyncHandler(async (req, res, next) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        address: user.address,
+        bio: user.bio,
         role: user.role,
         locale: user.locale,
         profilePictureFileId: user.profilePictureFileId,
@@ -575,6 +588,7 @@ const getUser = asyncHandler(async (req, res, next) => {
       user: {
         id: user._id,
         name: user.name,
+        bio: user.bio,
         role: user.role,
         profilePictureFileId: user.profilePictureFileId,
         createdAt: user.createdAt,

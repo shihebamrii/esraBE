@@ -37,6 +37,19 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // العنوان
+    address: {
+      type: String,
+      trim: true,
+    },
+
+    // نبذة
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'النبذة طويلة برشا'],
+    },
+
     // صورة البروفايل - مرجع GridFS
     profilePictureFileId: {
       type: mongoose.Schema.Types.ObjectId,

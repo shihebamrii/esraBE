@@ -1,6 +1,7 @@
 const { Inquiry } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const AppError = require('../utils/AppError');
+const { sendInquiryResponseEmail } = require('../services/emailService');
 
 /**
  * @desc    Submit a new contact inquiry
@@ -82,6 +83,45 @@ const updateInquiry = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Respond to inquiry via Email (Brevo)
+ * @route   POST /api/admin/inquiries/:id/respond
+ * @access  Private (Admin)
+ */
+const respondToInquiry = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { responseText } = req.body;
+
+  if (!responseText) {
+    return next(new AppError('Please provide a response text', 400));
+  }
+
+  const inquiry = await Inquiry.findById(id);
+
+  if (!inquiry) {
+    return next(new AppError('Inquiry not found', 404));
+  }
+
+  // Send the email using Brevo
+  try {
+    await sendInquiryResponseEmail(inquiry.email, inquiry.subject, responseText);
+    
+    // Update the status and admin notes
+    inquiry.status = 'replied';
+    inquiry.adminNotes = (inquiry.adminNotes ? inquiry.adminNotes + '\n\n' : '') + `Response sent: ${responseText}`;
+    await inquiry.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Email response sent successfully',
+      data: { inquiry },
+    });
+  } catch (error) {
+    console.error('Error sending response email:', error);
+    return next(new AppError('Failed to send email response', 500));
+  }
+});
+
+/**
  * @desc    Delete an inquiry (Admin)
  * @route   DELETE /api/admin/inquiries/:id
  * @access  Private (Admin)
@@ -105,5 +145,6 @@ module.exports = {
   submitInquiry,
   getAllInquiries,
   updateInquiry,
+  respondToInquiry,
   deleteInquiry,
 };

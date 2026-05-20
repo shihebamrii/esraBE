@@ -4,6 +4,65 @@
  */
 
 const sharp = require('sharp');
+const exifReader = require('exif-reader');
+
+/**
+ * Extract EXIF metadata from image buffer
+ * @param {Buffer} buffer 
+ * @returns {Promise<Object>}
+ */
+const getExifMetadata = async (buffer) => {
+  try {
+    const metadata = await sharp(buffer).metadata();
+    let exif = {};
+    
+    if (metadata.exif) {
+      exif = exifReader(metadata.exif);
+    }
+
+    // Process GPS coordinates if present
+    let location = null;
+    if (exif.gps && exif.gps.GPSLatitude && exif.gps.GPSLongitude) {
+      const lat = exif.gps.GPSLatitude[0] + exif.gps.GPSLatitude[1]/60 + exif.gps.GPSLatitude[2]/3600;
+      const lon = exif.gps.GPSLongitude[0] + exif.gps.GPSLongitude[1]/60 + exif.gps.GPSLongitude[2]/3600;
+      
+      const latRef = exif.gps.GPSLatitudeRef || 'N';
+      const lonRef = exif.gps.GPSLongitudeRef || 'E';
+      
+      location = {
+        lat: latRef === 'S' ? -lat : lat,
+        lon: lonRef === 'W' ? -lon : lon
+      };
+    }
+
+    return {
+      camera: exif.image ? {
+        make: exif.image.Make,
+        model: exif.image.Model,
+        software: exif.image.Software
+      } : null,
+      settings: exif.exif ? {
+        fNumber: exif.exif.FNumber,
+        exposureTime: exif.exif.ExposureTime,
+        iso: exif.exif.ISO,
+        focalLength: exif.exif.FocalLength,
+        dateTimeOriginal: exif.exif.DateTimeOriginal
+      } : null,
+      location,
+      file: {
+        format: metadata.format,
+        width: metadata.width,
+        height: metadata.height,
+        space: metadata.space,
+        density: metadata.density,
+        hasAlpha: metadata.hasAlpha
+      }
+    };
+  } catch (error) {
+    console.error('Error extracting EXIF:', error);
+    return null;
+  }
+};
 
 /**
  * نعملو صورة بجودة منخفضة
@@ -99,106 +158,78 @@ const createThumbnail = async (buffer, options = {}) => {
  */
 const addWatermark = async (buffer, text, options = {}) => {
   const {
-    fontSize = 24,
-    opacity = 0.5,
-    position = 'center',
-    color = 'white',
+    fontSize = 48,
+    color = 'rgba(255, 255, 255, 0.5)',
+    gravity = 'southeast',
   } = options;
 
-  const image = sharp(buffer);
-  const metadata = await image.metadata();
-
-  // نعملو SVG للنص
-  const svgText = `
-    <svg width="${metadata.width}" height="${metadata.height}">
+  const svgImage = `
+    <svg width="500" height="100">
       <style>
-        .watermark {
-          fill: ${color};
-          font-size: ${fontSize}px;
-          font-family: Arial, sans-serif;
-          opacity: ${opacity};
-        }
+        .title { fill: ${color}; font-size: ${fontSize}px; font-weight: bold; font-family: 'Arial'; }
       </style>
-      <text
-        x="50%"
-        y="50%"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        class="watermark"
-        transform="rotate(-30, ${metadata.width / 2}, ${metadata.height / 2})"
-      >${text}</text>
+      <text x="50%" y="50%" text-anchor="middle" class="title">${text}</text>
     </svg>
   `;
 
-  // نضيفو الـ watermark
-  return image
+  return sharp(buffer)
     .composite([
       {
-        input: Buffer.from(svgText),
-        gravity: position,
+        input: Buffer.from(svgImage),
+        gravity,
       },
     ])
     .toBuffer();
 };
 
 /**
- * نضيفو watermark متكرر على كل الصورة
+ * نضيفو watermark (صورة)
  * @param {Buffer} buffer - الصورة الأصلية
- * @param {string} text - النص المائي
+ * @param {Buffer} watermarkBuffer - صورة الـ watermark
  * @param {Object} options - الخيارات
  * @returns {Promise<Buffer>}
  */
-const addTiledWatermark = async (buffer, text, options = {}) => {
+const addImageWatermark = async (buffer, watermarkBuffer, options = {}) => {
   const {
-    fontSize = 20,
-    opacity = 0.3,
-    color = 'rgba(255,255,255,0.5)',
-    spacing = 150,
+    width = 150,
+    opacity = 0.5,
+    gravity = 'southeast',
   } = options;
 
-  const image = sharp(buffer);
-  const metadata = await image.metadata();
+  const resizedWatermark = await sharp(watermarkBuffer)
+    .resize(width)
+    .ensureAlpha(opacity)
+    .toBuffer();
 
-  // نحسبو عدد التكرارات
-  const cols = Math.ceil(metadata.width / spacing) + 1;
-  const rows = Math.ceil(metadata.height / spacing) + 1;
-
-  // نعملو النص المتكرر
-  let textElements = '';
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const x = col * spacing;
-      const y = row * spacing;
-      textElements += `
-        <text
-          x="${x}"
-          y="${y}"
-          class="watermark"
-          transform="rotate(-30, ${x}, ${y})"
-        >${text}</text>
-      `;
-    }
-  }
-
-  const svgOverlay = `
-    <svg width="${metadata.width}" height="${metadata.height}">
-      <style>
-        .watermark {
-          fill: ${color};
-          font-size: ${fontSize}px;
-          font-family: Arial, sans-serif;
-          opacity: ${opacity};
-        }
-      </style>
-      ${textElements}
-    </svg>
-  `;
-
-  return image
+  return sharp(buffer)
     .composite([
       {
-        input: Buffer.from(svgOverlay),
-        gravity: 'northwest',
+        input: resizedWatermark,
+        gravity,
+      },
+    ])
+    .toBuffer();
+};
+
+/**
+ * تكرار الـ watermark على كامل الصورة
+ */
+const addTiledWatermark = async (buffer, watermarkBuffer, options = {}) => {
+  const {
+    width = 100,
+    opacity = 0.3,
+  } = options;
+
+  const resizedWatermark = await sharp(watermarkBuffer)
+    .resize(width)
+    .ensureAlpha(opacity)
+    .toBuffer();
+
+  return sharp(buffer)
+    .composite([
+      {
+        input: resizedWatermark,
+        tile: true,
       },
     ])
     .toBuffer();
@@ -206,68 +237,47 @@ const addTiledWatermark = async (buffer, text, options = {}) => {
 
 /**
  * نجيبو معلومات الصورة
- * @param {Buffer} buffer - الصورة
- * @returns {Promise<Object>}
  */
 const getImageInfo = async (buffer) => {
   const metadata = await sharp(buffer).metadata();
-  
   return {
     width: metadata.width,
     height: metadata.height,
     format: metadata.format,
     size: buffer.length,
     hasAlpha: metadata.hasAlpha,
-    orientation: metadata.orientation,
+    space: metadata.space,
   };
 };
 
 /**
- * نحولو الصورة لفورمات مختلف
- * @param {Buffer} buffer - الصورة الأصلية
- * @param {string} format - الفورمات المطلوب
- * @param {Object} options - الخيارات
- * @returns {Promise<Buffer>}
+ * تحويل الفورمات
  */
 const convertFormat = async (buffer, format, options = {}) => {
-  const { quality = 85 } = options;
-  
+  const { quality = 80 } = options;
   let image = sharp(buffer);
-  
-  switch (format.toLowerCase()) {
-    case 'jpeg':
-    case 'jpg':
-      image = image.jpeg({ quality });
-      break;
-    case 'png':
-      image = image.png({ compressionLevel: 9 });
-      break;
-    case 'webp':
-      image = image.webp({ quality });
-      break;
-    case 'avif':
-      image = image.avif({ quality });
-      break;
-    default:
-      throw new Error(`فورمات مش مدعوم: ${format}`);
+
+  if (format === 'jpeg' || format === 'jpg') {
+    image = image.jpeg({ quality });
+  } else if (format === 'webp') {
+    image = image.webp({ quality });
+  } else if (format === 'png') {
+    image = image.png({ compressionLevel: 9 });
   }
-  
+
   return image.toBuffer();
 };
 
 /**
- * نعدلو على الصورة (brightness, contrast, etc.)
- * @param {Buffer} buffer - الصورة الأصلية
- * @param {Object} adjustments - التعديلات
- * @returns {Promise<Buffer>}
+ * تعديل خصائص الصورة (brightness, contrast, etc.)
  */
-const adjustImage = async (buffer, adjustments = {}) => {
+const adjustImage = async (buffer, options = {}) => {
   const {
     brightness = 1,
     saturation = 1,
     hue = 0,
     lightness = 0,
-  } = adjustments;
+  } = options;
 
   return sharp(buffer)
     .modulate({
@@ -280,9 +290,11 @@ const adjustImage = async (buffer, adjustments = {}) => {
 };
 
 module.exports = {
+  getExifMetadata,
   createLowResVersion,
   createThumbnail,
   addWatermark,
+  addImageWatermark,
   addTiledWatermark,
   getImageInfo,
   convertFormat,

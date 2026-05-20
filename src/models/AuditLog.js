@@ -45,6 +45,11 @@ const auditLogSchema = new mongoose.Schema(
         'PACK_UPDATE',
         'PACK_DELETE',
         
+        // إجراءات البلاي ليست
+        'PLAYLIST_CREATE',
+        'PLAYLIST_UPDATE',
+        'PLAYLIST_DELETE',
+        
         // إجراءات الشراء
         'ORDER_CREATE',
         'ORDER_PAID',
