@@ -1,25 +1,21 @@
-/**
- * Custom Error Class / كلاس الأخطاء المخصص
- * هنا نعرفو نوع خاص من الأخطاء باش نتحكمو فيهم خير
- */
-
+// Définition de la classe AppError qui hérite de la classe native Error de JavaScript
 class AppError extends Error {
-  /**
-   * @param {string} message - رسالة الخطأ
-   * @param {number} statusCode - كود الحالة HTTP
-   */
+  // Le constructeur prend un message d'erreur et un code de statut HTTP en paramètres
   constructor(message, statusCode) {
+    // Appel du constructeur de la classe parente Error avec le message d'erreur
     super(message);
-    
+
+    // Stockage du code de statut HTTP (par exemple 404, 500)
     this.statusCode = statusCode;
-    // نحددو إذا الخطأ من العميل (4xx) ولا من السيرفر (5xx)
+    // Détermination du type de statut : "fail" si le code commence par 4 (erreur client), sinon "error" (erreur serveur)
     this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    // الأخطاء المتوقعة الي نقدرو نبعثوها للعميل
+    // Marquage de cette erreur comme opérationnelle (erreur prévue et non un bug)
     this.isOperational = true;
 
-    // نخزنو stack trace بدون هذا الكونستراكتور
+    // Capture de la trace de la pile d'appels sans inclure le constructeur dans la trace
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
+// Exportation de la classe AppError pour l'utiliser dans d'autres fichiers
 module.exports = AppError;

@@ -1,42 +1,51 @@
-/**
- * Video Processor Service / خدمة معالجة الفيديو
- * Uses FFmpeg to analyze and transcode videos for better compatibility.
- */
-
+// Importation de la bibliothèque fluent-ffmpeg pour le traitement vidéo
 const ffmpeg = require('fluent-ffmpeg');
+// Importation du programme FFmpeg installé via npm
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+// Importation du programme FFprobe installé via npm
 const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
 
-// Set paths to our bundled binaries so clients don't need ffmpeg installed globally!
+// Configuration du chemin vers l'exécutable FFmpeg
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// Configuration du chemin vers l'exécutable FFprobe
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
+// Importation des classes Readable et PassThrough depuis le module stream de Node.js
 const { Readable, PassThrough } = require('stream');
+// Importation du module path pour la gestion des chemins de fichiers
 const path = require('path');
+// Importation du module os pour accéder au répertoire temporaire du système
 const os = require('os');
+// Importation du module fs pour les opérations sur le système de fichiers
 const fs = require('fs');
+// Importation du module crypto pour générer des identifiants uniques
 const crypto = require('crypto');
+// Importation de la classe d'erreur personnalisée AppError
 const AppError = require('../utils/AppError');
 
-/**
- * Gets video metadata
- * @param {Buffer} buffer 
- * @returns {Promise<Object>}
- */
+// Déclaration de la fonction pour obtenir les métadonnées d'une vidéo
 const getVideoMetadata = (buffer) => {
+  // Création et retour d'une promesse pour gérer l'opération asynchrone
   return new Promise((resolve, reject) => {
+    // Création d'un chemin de fichier temporaire unique pour stocker la vidéo
     const tempInput = path.join(os.tmpdir(), `meta_${crypto.randomBytes(8).toString('hex')}.mp4`);
+    // Écriture du tampon vidéo dans le fichier temporaire
     fs.writeFileSync(tempInput, buffer);
 
+    // Analyse des métadonnées de la vidéo avec FFprobe
     ffmpeg(tempInput)
       .ffprobe((err, metadata) => {
+        // Suppression du fichier temporaire s'il existe
         if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+        // En cas d'erreur, affichage dans la console et rejet de la promesse
         if (err) {
           console.error('ffprobe error:', err);
-          return reject(new AppError('فشل تحليل بيانات الفيديو', 500));
+          return reject(new AppError("Échec de l'analyse des données vidéo", 500));
         }
         
+        // Recherche du flux vidéo parmi les flux disponibles
         const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+        // Résolution de la promesse avec les métadonnées extraites
         resolve({
           codec: videoStream?.codec_name,
           width: videoStream?.width,
@@ -49,98 +58,129 @@ const getVideoMetadata = (buffer) => {
   });
 };
 
-/**
- * Transcodes video to H.264 (AVC) if needed or if codec is HEVC
- * @param {Buffer} buffer 
- * @param {String} originalName 
- * @returns {Promise<{buffer: Buffer, info: Object}>}
- */
+// Déclaration de la fonction asynchrone pour convertir une vidéo en codec compatible (H.264)
 const ensureCompatibleCodec = async (buffer, originalName) => {
   try {
+    // Récupération des métadonnées de la vidéo
     const metadata = await getVideoMetadata(buffer);
     
-    // If it's already H.264, we might not need to transcode
-    // but if it's HEVC (h265), we definitely do
+    // Vérification si le codec n'est pas HEVC (pas besoin de conversion)
     if (metadata.codec !== 'hevc' && metadata.codec !== 'h265') {
+       // Affichage dans la console que la conversion n'est pas nécessaire
        console.log(`Video ${originalName} uses ${metadata.codec}, no transcoding needed.`);
+       // Retour du tampon original sans modification
        return { buffer, info: metadata, transcoded: false };
     }
 
+    // Affichage dans la console que la conversion est en cours
     console.log(`Transcoding ${originalName} from HEVC to H.264 for compatibility...`);
 
+    // Création et retour d'une promesse pour gérer le transcodage
     return new Promise((resolve, reject) => {
+      // Génération d'un identifiant unique pour les fichiers temporaires
       const uniqueId = crypto.randomBytes(8).toString('hex');
+      // Chemin du fichier temporaire d'entrée
       const tempInput = path.join(os.tmpdir(), `input_${uniqueId}.mp4`);
+      // Chemin du fichier temporaire de sortie
       const tempOutput = path.join(os.tmpdir(), `output_${uniqueId}.mp4`);
 
+      // Écriture du tampon vidéo dans le fichier temporaire d'entrée
       fs.writeFileSync(tempInput, buffer);
 
+      // Démarrage du transcodage avec FFmpeg
       ffmpeg(tempInput)
+        // Définition du format de sortie en MP4
         .format('mp4')
+        // Utilisation du codec vidéo H.264
         .videoCodec('libx264')
+        // Utilisation du codec audio AAC
         .audioCodec('aac')
+        // Options de sortie pour optimiser la qualité et la compatibilité
         .outputOptions([
           '-preset fast',
           '-crf 23',
           '-movflags +faststart'
         ])
+        // Événement déclenché à la fin du transcodage
         .on('end', () => {
           try {
+            // Lecture du fichier vidéo transcodé
             const transcodeBuffer = fs.readFileSync(tempOutput);
+            // Suppression du fichier temporaire d'entrée
             if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+            // Suppression du fichier temporaire de sortie
             if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+            // Résolution de la promesse avec le tampon transcodé et les métadonnées mises à jour
             resolve({ 
               buffer: transcodeBuffer, 
               info: { ...metadata, codec: 'h264' }, 
               transcoded: true 
             });
           } catch (err) {
+            // Affichage de l'erreur de lecture du fichier dans la console
             console.error('File read error:', err);
-            reject(new AppError('فشل قراءة الملف المحول', 500));
+            // Rejet de la promesse avec une erreur personnalisée
+            reject(new AppError('Échec de la lecture du fichier converti', 500));
           }
         })
+        // Événement déclenché en cas d'erreur pendant le transcodage
         .on('error', (err) => {
+          // Affichage de l'erreur FFmpeg dans la console
           console.error('FFmpeg error:', err);
+          // Suppression du fichier temporaire d'entrée
           if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+          // Suppression du fichier temporaire de sortie
           if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-          reject(new AppError('خطأ أثناء تحويل الفيديو', 500));
+          // Rejet de la promesse avec une erreur personnalisée
+          reject(new AppError('Erreur lors de la conversion de la vidéo', 500));
         })
+        // Sauvegarde de la vidéo transcodée dans le fichier de sortie
         .save(tempOutput);
     });
   } catch (error) {
+    // Affichage de l'erreur de traitement vidéo dans la console
     console.error('Video processing error:', error);
+    // Relancement de l'erreur pour la propager
     throw error;
   }
 };
 
-/**
- * Creates a thumbnail from a video buffer
- * @param {Buffer} buffer 
- * @param {Number} timestamp 
- * @returns {Promise<Buffer>}
- */
+// Déclaration de la fonction pour créer une miniature à partir d'un tampon vidéo
 const createThumbnailFromVideo = (buffer, timestamp = 1) => {
+  // Création et retour d'une promesse pour gérer l'opération asynchrone
   return new Promise((resolve, reject) => {
+    // Création d'un flux de lecture à partir du tampon vidéo
     const inputStream = Readable.from(buffer);
+    // Création d'un flux PassThrough pour la sortie
     const outputStream = new PassThrough();
+    // Initialisation d'un tableau pour stocker les morceaux de données
     const chunks = [];
 
+    // Écoute de chaque morceau de données reçu et ajout dans le tableau
     outputStream.on('data', (chunk) => chunks.push(chunk));
+    // Résolution de la promesse avec la concaténation de tous les morceaux à la fin du flux
     outputStream.on('end', () => resolve(Buffer.concat(chunks)));
+    // Rejet de la promesse en cas d'erreur sur le flux de sortie
     outputStream.on('error', reject);
 
+    // Capture d'une image de la vidéo au moment spécifié
     ffmpeg(inputStream)
       .screenshots({
+        // Liste des moments où capturer les images
         timestamps: [timestamp],
-        folder: '/tmp', // Note: Not used by pipe but required by screenshots method sometimes
+        // Dossier temporaire requis par la méthode screenshots
+        folder: '/tmp',
+        // Nom du fichier de la miniature
         filename: 'thumbnail.jpg'
       })
+      // Rejet de la promesse en cas d'erreur FFmpeg
       .on('error', reject)
+      // Redirection du flux de sortie
       .pipe(outputStream);
-      // Wait, shots doesn't pipe easily. Better use single frame output
   });
 };
 
+// Exportation des fonctions de traitement vidéo
 module.exports = {
   getVideoMetadata,
   ensureCompatibleCodec

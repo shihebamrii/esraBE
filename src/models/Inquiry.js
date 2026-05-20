@@ -1,74 +1,77 @@
+// Importation de la bibliothèque mongoose pour gérer la base de données MongoDB
 const mongoose = require('mongoose');
 
-/**
- * Inquiry Model / موديل الاستفسارات والرسائل
- * هنا نخزنو الرسائل الي تجينا من الفورم متاع "اتصل بنا"
- */
+// Définition du schéma pour les demandes de contact (formulaire "Contactez-nous")
 const inquirySchema = new mongoose.Schema(
   {
-    // اسم المرسل
+    // Nom de la personne qui envoie le message, obligatoire
     name: {
       type: String,
-      required: [true, 'الاسم ضروري!'],
+      required: [true, 'Le nom est obligatoire !'],
       trim: true,
-      maxlength: [100, 'الاسم طويل برشا'],
+      maxlength: [100, 'Le nom est trop long'],
     },
 
-    // إيميل المرسل
+    // Adresse email de l'expéditeur, obligatoire et en minuscules
     email: {
       type: String,
-      required: [true, 'الإيميل ضروري!'],
+      required: [true, "L'e-mail est obligatoire !"],
       trim: true,
       lowercase: true,
       match: [
         /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        'الإيميل مش صحيح!',
+        "L'e-mail n'est pas valide !",
       ],
     },
 
-    // موضوع الرسالة
+    // Sujet du message, obligatoire
     subject: {
       type: String,
-      required: [true, 'الموضوع ضروري!'],
+      required: [true, 'Le sujet est obligatoire !'],
       trim: true,
-      maxlength: [200, 'الموضوع طويل برشا'],
+      maxlength: [200, 'Le sujet est trop long'],
     },
 
-    // نص الرسالة
+    // Contenu du message, obligatoire
     message: {
       type: String,
-      required: [true, 'الرسالة ضرورية!'],
+      required: [true, 'Le message est obligatoire !'],
       trim: true,
-      maxlength: [2000, 'الرسالة طويلة برشا'],
+      maxlength: [2000, 'Le message est trop long'],
     },
 
-    // حالة الرسالة
+    // Statut du message (en attente, lu, répondu ou archivé)
     status: {
       type: String,
       enum: ['pending', 'read', 'replied', 'archived'],
       default: 'pending',
     },
 
-    // ملاحظات الأدمن
+    // Notes de l'administrateur sur ce message
     adminNotes: {
       type: String,
       trim: true,
     },
   },
   {
-    timestamps: true, // createdAt و updatedAt
+    // Ajout automatique des champs createdAt et updatedAt
+    timestamps: true,
+    // Inclusion des propriétés virtuelles lors de la conversion en JSON
     toJSON: { virtuals: true },
+    // Inclusion des propriétés virtuelles lors de la conversion en objet
     toObject: { virtuals: true },
   }
 );
 
-// ============================================
-// Indexes / الفهارس
-// ============================================
+// Index pour filtrer rapidement par statut
 inquirySchema.index({ status: 1 });
+// Index pour chercher rapidement par adresse email
 inquirySchema.index({ email: 1 });
+// Index pour trier par date de création décroissante
 inquirySchema.index({ createdAt: -1 });
 
+// Création du modèle Inquiry à partir du schéma défini
 const Inquiry = mongoose.model('Inquiry', inquirySchema);
 
+// Exportation du modèle pour l'utiliser dans d'autres fichiers
 module.exports = Inquiry;

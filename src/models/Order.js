@@ -1,124 +1,125 @@
-/**
- * Order Model / موديل الطلبات
- * هنا نخزنو الطلبات والمشتريات
- */
-
+// Importation de la bibliothèque mongoose pour gérer la base de données MongoDB
 const mongoose = require('mongoose');
+// Importation du module crypto pour générer des jetons aléatoires sécurisés
 const crypto = require('crypto');
 
-// سكيما لعنصر واحد في الطلب
+// Définition du schéma pour un élément individuel dans une commande
 const orderItemSchema = new mongoose.Schema(
   {
-    // نوع العنصر
+    // Type de l'élément commandé (photo, pack ou contenu)
     type: {
       type: String,
       enum: ['photo', 'pack', 'content'],
       required: true,
     },
-    
-    // مرجع العنصر
+
+    // Identifiant de l'élément, référence dynamique selon le type
     itemId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       refPath: 'items.type',
     },
-    
-    // السعر وقت الشراء
+
+    // Prix de l'élément au moment de l'achat
     price: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // العنوان (نسخة للتاريخ)
+    // Titre de l'élément (copie pour historique)
     title: String,
 
-    // نوع الترخيص
+    // Type de licence choisie (personnelle ou commerciale)
     licenseType: {
       type: String,
       enum: ['personal', 'commercial'],
       default: 'personal',
     },
   },
+  // Pas de génération d'identifiant unique pour les éléments de commande
   { _id: false }
 );
 
-// سكيما لتوكن التحميل
+// Définition du schéma pour un jeton de téléchargement
 const downloadTokenSchema = new mongoose.Schema(
   {
-    // التوكن (مشفر)
+    // Valeur du jeton, stockée sous forme hachée
     token: {
       type: String,
       required: true,
     },
-    
-    // العنصر المرتبط
+
+    // Type de l'élément associé au jeton (photo, pack ou contenu)
     itemType: {
       type: String,
       enum: ['photo', 'pack', 'content'],
       required: true,
     },
-    
+
+    // Identifiant de l'élément associé au jeton
     itemId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     }
   },
+  // Génération automatique d'un identifiant unique pour chaque jeton
   { _id: true }
 );
 
+// Définition du schéma principal pour les commandes
 const orderSchema = new mongoose.Schema(
   {
-    // المستخدم
+    // Identifiant de l'utilisateur qui a passé la commande, référence vers User
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
 
-    // العناصر المشتراة
+    // Liste des éléments achetés dans cette commande
     items: [orderItemSchema],
 
-    // المجموع
+    // Montant total de la commande
     total: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // العملة
+    // Devise utilisée pour le paiement, par défaut le dinar tunisien
     currency: {
       type: String,
       default: 'TND',
       uppercase: true,
     },
 
-    // حالة الدفع
+    // Statut du paiement (en attente, payé, échoué ou remboursé)
     paymentStatus: {
       type: String,
       enum: ['pending', 'paid', 'failed', 'refunded'],
       default: 'pending',
     },
 
-    // مزود الدفع
+    // Fournisseur de paiement utilisé (mock, stripe ou paytech)
     paymentProvider: {
       type: String,
       enum: ['mock', 'stripe', 'paytech'],
     },
 
-    // معرف الدفع من المزود
+    // Identifiant du paiement chez le fournisseur
     paymentId: String,
 
-    // توكنز التحميل
+    // Liste des jetons de téléchargement générés pour cette commande
     downloadTokens: [downloadTokenSchema],
 
-    // ميتاداتا إضافية
+    // Métadonnées supplémentaires au format libre
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
 
-    // بيانات الفاتورة
+    // Informations de facturation du client
     billingInfo: {
       name: String,
       email: String,
@@ -126,118 +127,104 @@ const orderSchema = new mongoose.Schema(
       country: String,
     },
 
-    // ملاحظات
+    // Notes supplémentaires sur la commande
     notes: String,
 
-    // تاريخ الدفع
+    // Date et heure du paiement
     paidAt: Date,
 
-    // تاريخ الإلغاء
+    // Date et heure de l'annulation
     cancelledAt: Date,
   },
   {
+    // Ajout automatique des champs createdAt et updatedAt
     timestamps: true,
+    // Inclusion des propriétés virtuelles lors de la conversion en JSON
     toJSON: { virtuals: true },
+    // Inclusion des propriétés virtuelles lors de la conversion en objet
     toObject: { virtuals: true },
   }
 );
 
-// ============================================
-// Indexes / الفهارس
-// ============================================
-
+// Index pour chercher rapidement les commandes par utilisateur
 orderSchema.index({ userId: 1 });
+// Index pour filtrer par statut de paiement
 orderSchema.index({ paymentStatus: 1 });
+// Index pour trier par date de création décroissante
 orderSchema.index({ createdAt: -1 });
+// Index pour chercher par identifiant de paiement
 orderSchema.index({ paymentId: 1 });
+// Index pour chercher par jeton de téléchargement
 orderSchema.index({ 'downloadTokens.token': 1 });
 
-// ============================================
-// Virtuals / الخصائص الافتراضية
-// ============================================
-
-/**
- * عدد العناصر
- */
+// Propriété virtuelle pour obtenir le nombre d'éléments dans la commande
 orderSchema.virtual('itemCount').get(function () {
   return this.items ? this.items.length : 0;
 });
 
-/**
- * إذا الطلب مدفوع
- */
+// Propriété virtuelle pour vérifier si la commande est payée
 orderSchema.virtual('isPaid').get(function () {
   return this.paymentStatus === 'paid';
 });
 
-// ============================================
-// Instance Methods / ميثودز الانستانس
-// ============================================
-
-/**
- * نعملو توكن تحميل للعنصر
- * @param {string} itemType - نوع العنصر
- * @param {ObjectId} itemId - معرف العنصر
- * @param {number} expiresInHours - مدة الصلاحية بالساعات
- * @returns {string} التوكن الخام
- */
+// Méthode d'instance pour créer un jeton de téléchargement pour un élément
 orderSchema.methods.createDownloadToken = function (itemType, itemId) {
-  // نعملو توكن عشوائي
+  // Génération d'un jeton aléatoire de 32 octets converti en hexadécimal
   const rawToken = crypto.randomBytes(32).toString('hex');
-  
-  // نخزنوه مشفر
+
+  // Hachage du jeton avec SHA-256 pour le stockage sécurisé
   const hashedToken = crypto
     .createHash('sha256')
     .update(rawToken)
     .digest('hex');
-  
-  // نضيفو التوكن
+
+  // Ajout du jeton haché dans la liste des jetons de téléchargement
   this.downloadTokens.push({
     token: hashedToken,
     itemType,
     itemId,
   });
-  
+
+  // Retour du jeton brut (non haché) pour l'envoyer à l'utilisateur
   return rawToken;
 };
 
-/**
- * نتأكدو من صلاحية توكن التحميل
- * @param {string} rawToken - التوكن الخام
- * @returns {Object|null} بيانات التوكن أو null
- */
+// Méthode d'instance pour vérifier la validité d'un jeton de téléchargement
 orderSchema.methods.verifyDownloadToken = function (rawToken) {
+  // Hachage du jeton reçu pour le comparer avec celui stocké
   const hashedToken = crypto
     .createHash('sha256')
     .update(rawToken)
     .digest('hex');
-  
+
+  // Recherche du jeton correspondant dans la liste des jetons
   const tokenDoc = this.downloadTokens.find(
     (t) => t.token === hashedToken
   );
-  
+
+  // Retourne le jeton trouvé ou null si non trouvé
   return tokenDoc || null;
 };
 
-/**
- * نستهلكو استخدام من التوكن
- * @param {string} rawToken - التوكن الخام
- */
+// Méthode d'instance pour marquer l'utilisation d'un jeton de téléchargement
 orderSchema.methods.useDownloadToken = async function (rawToken) {
-  // لا يوجد عدد محدود للاستخدام، لذا لا يوجد حاجة لتحديث التوكن
-  // لكن نبقي الدالة فارغة لكي لا ينكسر الكود السابق
+  // Pas de limite d'utilisation, la fonction est gardée pour compatibilité
 };
 
-/**
- * نحدثو حالة الدفع لمدفوع
- */
+// Méthode d'instance pour marquer la commande comme payée
 orderSchema.methods.markAsPaid = async function (paymentId) {
+  // Mise à jour du statut du paiement à "payé"
   this.paymentStatus = 'paid';
+  // Enregistrement de l'identifiant du paiement
   this.paymentId = paymentId;
+  // Enregistrement de la date du paiement
   this.paidAt = new Date();
+  // Sauvegarde de la commande dans la base de données
   await this.save();
 };
 
+// Création du modèle Order à partir du schéma défini
 const Order = mongoose.model('Order', orderSchema);
 
+// Exportation du modèle pour l'utiliser dans d'autres fichiers
 module.exports = Order;

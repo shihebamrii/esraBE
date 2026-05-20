@@ -1,31 +1,37 @@
+// Importation du framework Express
 const express = require('express');
+// Importation du contrôleur du tableau de bord
 const dashboardController = require('../controllers/dashboardController');
-const authController = require('../controllers/authController'); // Need protect middleware
+// Importation du contrôleur d'authentification
+const authController = require('../controllers/authController');
 
+// Création d'un routeur Express
 const router = express.Router();
 
-// Protect all routes
-// Assuming there is a 'protect' middleware in authController or similar. 
-// Scanning previous file `authController.js` and `authRoutes.js` usually reveals the middleware usage.
-// I will assume standard practice: require('../middlewares/authMiddleware').protect or similar.
-// Let's check `authRoutes.js` first or assume standard `authController.protect` if it was exported?
-// Ah, `authController` didn't seem to export `protect`. It's likely in a middleware file.
-// I saw `middlewares` dir. `protect` is likely in `src/middlewares/authMiddleware.js` or similar.
-// I will use a placeholder for now and verification step will fix if import is wrong, but typically it's separate.
-// Wait, I should check `routes/contentRoutes.js` to see how they protect routes.
-
+// Importation du middleware de protection pour vérifier l'authentification
 const { protect } = require('../middlewares/authMiddleware');
 
+// Application du middleware de protection sur toutes les routes du tableau de bord
 router.use(protect);
 
+// Route GET pour obtenir les statistiques de téléchargement de l'utilisateur
 router.get('/stats', dashboardController.getUserUploadStats);
+// Route GET pour obtenir l'activité récente
 router.get('/recent', dashboardController.getRecentActivity);
+// Route GET pour obtenir les statistiques de l'utilisateur
 router.get('/user-stats', dashboardController.getUserStats);
+// Route GET pour obtenir les statistiques d'administration
 router.get('/admin-stats', dashboardController.getAdminStats);
+// Route GET pour obtenir la liste des téléchargements de l'utilisateur
 router.get('/downloads', dashboardController.getMyDownloads);
+// Route GET pour obtenir les photos de l'utilisateur
 router.get('/my-photos', dashboardController.getMyPhotos);
+// Route GET pour obtenir le contenu de l'utilisateur
 router.get('/my-content', dashboardController.getMyContent);
+// Route GET pour obtenir les packs de l'utilisateur
 router.get('/packs', dashboardController.getUserPacks);
+// Route POST pour enregistrer un téléchargement
 router.post('/track-download', dashboardController.trackDownload);
 
+// Exportation du routeur
 module.exports = router;

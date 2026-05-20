@@ -1,23 +1,15 @@
-/**
- * Public Playlist Routes / راوتز قوائم التشغيل العامة
- */
-
+// Importation du framework Express
 const express = require('express');
+// Création d'un routeur Express
 const router = express.Router();
+// Importation du contrôleur de listes de lecture
 const playlistController = require('../controllers/playlistController');
 
-/**
- * @desc    قائمة قوائم التشغيل العامة
- * @route   GET /api/playlists
- * @access  Public
- */
+// Route GET pour obtenir la liste de toutes les listes de lecture publiques
 router.get('/', playlistController.getAllPlaylists);
 
-/**
- * @desc    تفاصيل قائمة تشغيل
- * @route   GET /api/playlists/:id
- * @access  Public
- */
+// Route GET pour obtenir les détails d'une liste de lecture par son identifiant
 router.get('/:id', playlistController.getPlaylist);
 
+// Exportation du routeur
 module.exports = router;

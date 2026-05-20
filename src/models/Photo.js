@@ -1,128 +1,126 @@
-/**
- * Photo Model / موديل الصور
- * هنا نخزنو صور Tounesna - السياحة التونسية
- */
-
+// Importation de la bibliothèque mongoose pour gérer la base de données MongoDB
 const mongoose = require('mongoose');
 
+// Définition du schéma pour les photos (tourisme tunisien)
 const photoSchema = new mongoose.Schema(
   {
-    // العنوان
+    // Titre de la photo, obligatoire, avec une longueur maximale de 200 caractères
     title: {
       type: String,
-      required: [true, 'عنوان الصورة ضروري!'],
+      required: [true, 'Le titre de la photo est obligatoire !'],
       trim: true,
-      maxlength: [200, 'العنوان طويل برشا'],
+      maxlength: [200, 'Le titre est trop long'],
     },
 
-    // نوع الميديا (صورة أو فيديو)
+    // Type de média (photo ou vidéo)
     mediaType: {
       type: String,
       enum: ['photo', 'video'],
       default: 'photo',
     },
 
-    // الوصف
+    // Description de la photo, avec une longueur maximale de 2000 caractères
     description: {
       type: String,
       trim: true,
-      maxlength: [2000, 'الوصف طويل برشا'],
+      maxlength: [2000, 'La description est trop longue'],
     },
 
-    // الولاية
+    // Gouvernorat où la photo a été prise, obligatoire
     governorate: {
       type: String,
-      required: [true, 'الولاية ضرورية!'],
+      required: [true, 'Le gouvernorat est obligatoire !'],
       trim: true,
     },
 
-    // نوع المنظر
+    // Type de paysage représenté sur la photo, obligatoire
     landscapeType: {
       type: String,
       enum: ['sea', 'desert', 'mountain', 'village', 'oasis', 'forest', 'city', 'historical', 'other'],
-      required: [true, 'نوع المنظر ضروري!'],
+      required: [true, 'Le type de paysage est obligatoire !'],
     },
 
-    // صورة بجودة منخفضة - مرجع GridFS
+    // Identifiant du fichier basse résolution dans GridFS
     lowResFileId: {
       type: mongoose.Schema.Types.ObjectId,
     },
 
-    // رابط الصورة الخارجي (للهوتلينك)
+    // URL externe de l'image (pour les liens directs)
     imageUrl: {
       type: String,
       trim: true,
     },
 
-    // صورة بجودة عالية - مرجع GridFS
+    // Identifiant du fichier haute résolution dans GridFS
     highResFileId: {
       type: mongoose.Schema.Types.ObjectId,
-      // required: [true, 'الصورة بالجودة العالية ضرورية!'], // جعلناها اختيارية خاطر تنجم تكون رابط خارجي
     },
 
-    // السعر بالدينار التونسي (تراجع: يستعمل كسعر شخصي)
+    // Prix en dinars tunisiens (utilisé comme prix personnel par défaut)
     priceTND: {
       type: Number,
-      min: [0, 'السعر لازم يكون إيجابي'],
+      min: [0, 'Le prix doit être positif'],
       default: 0,
     },
 
-    // سعر الترخيص الشخصي
+    // Prix pour une licence personnelle en dinars tunisiens
     pricePersonalTND: {
       type: Number,
-      min: [0, 'السعر لازم يكون إيجابي'],
+      min: [0, 'Le prix doit être positif'],
       default: 0,
     },
 
-    // سعر الترخيص التجاري
+    // Prix pour une licence commerciale en dinars tunisiens
     priceCommercialTND: {
       type: Number,
-      min: [0, 'السعر لازم يكون إيجابي'],
+      min: [0, 'Le prix doit être positif'],
       default: 0,
     },
 
-    // إذا عليها علامة مائية
+    // Indique si la photo contient un filigrane (watermark)
     watermark: {
       type: Boolean,
       default: true,
     },
 
-    // نص الإسناد / Attribution
+    // Texte d'attribution affiché avec la photo
     attributionText: {
       type: String,
       default: 'Photo prise lors de la tournée de CnBees - Tourisme durable',
     },
 
-    // الباكات الي فيها هالصورة
+    // Liste des packs qui contiennent cette photo, références vers Pack
     packs: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Pack',
     }],
 
-    // من رفع الصورة
+    // Identifiant de l'utilisateur qui a téléchargé la photo, référence vers User
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
 
-    // التاقز للبحث
+    // Mots-clés pour faciliter la recherche, en minuscules
     tags: [{
       type: String,
       lowercase: true,
       trim: true,
     }],
 
-    // معلومات الملف
+    // Informations techniques sur les fichiers de la photo
     fileInfo: {
+      // Informations sur le fichier haute résolution
       highRes: {
         filename: String,
         contentType: String,
         size: Number,
         width: Number,
         height: Number,
-        duration: Number, // للفيديو
+        duration: Number,
       },
+      // Informations sur le fichier basse résolution
       lowRes: {
         filename: String,
         contentType: String,
@@ -132,25 +130,25 @@ const photoSchema = new mongoose.Schema(
       },
     },
 
-    // عدد التحميلات (للصورة المجانية)
+    // Nombre de téléchargements de l'aperçu gratuit
     previewDownloads: {
       type: Number,
       default: 0,
     },
 
-    // عدد المبيعات
+    // Nombre total d'achats de cette photo
     purchases: {
       type: Number,
       default: 0,
     },
 
-    // عدد التحميلات الفعلية (نقرات على زر التحميل)
+    // Nombre de téléchargements effectifs de la photo
     downloads: {
       type: Number,
       default: 0,
     },
 
-    // حالة الموافقة (للصور المرفوعة من المستخدمين)
+    // Statut d'approbation de la photo (en attente, approuvée ou rejetée)
     approvalStatus: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
@@ -158,17 +156,16 @@ const photoSchema = new mongoose.Schema(
     },
   },
   {
+    // Ajout automatique des champs createdAt et updatedAt
     timestamps: true,
+    // Inclusion des propriétés virtuelles lors de la conversion en JSON
     toJSON: { virtuals: true },
+    // Inclusion des propriétés virtuelles lors de la conversion en objet
     toObject: { virtuals: true },
   }
 );
 
-// ============================================
-// Indexes / الفهارس
-// ============================================
-
-// فهرس النص للبحث
+// Index de recherche textuelle sur le titre, la description et les mots-clés
 photoSchema.index(
   {
     title: 'text',
@@ -180,61 +177,54 @@ photoSchema.index(
   }
 );
 
-// فهارس للفلترة
+// Index pour filtrer par gouvernorat
 photoSchema.index({ governorate: 1 });
+// Index pour filtrer par type de paysage
 photoSchema.index({ landscapeType: 1 });
+// Index pour filtrer par prix
 photoSchema.index({ priceTND: 1 });
+// Index pour trier par date de création décroissante
 photoSchema.index({ createdAt: -1 });
 
-// ============================================
-// Virtuals / الخصائص الافتراضية
-// ============================================
-
-/**
- * رابط البريفيو (الصورة بالجودة المنخفضة)
- */
+// Propriété virtuelle pour obtenir l'URL de l'aperçu (basse résolution)
 photoSchema.virtual('previewUrl').get(function () {
+  // Si une URL externe existe, on la retourne directement
   if (this.imageUrl) return this.imageUrl;
+  // Sélection du fichier basse résolution ou haute résolution comme alternative
   const fileId = this.lowResFileId || this.highResFileId;
+  // Construction de l'URL de l'aperçu
   return `/api/photos/${this._id}/preview`;
 });
 
-/**
- * رابط الصورة بالجودة العالية (يحتاج شراء)
- */
+// Propriété virtuelle pour obtenir l'URL de la photo haute résolution
 photoSchema.virtual('highResUrl').get(function () {
+  // Si une URL externe existe, on la retourne directement
   if (this.imageUrl) return this.imageUrl;
+  // Si aucun fichier haute résolution n'existe, on retourne null
   if (!this.highResFileId) return null;
+  // Construction de l'URL vers le fichier haute résolution
   return `/api/media/${this.highResFileId}`;
 });
 
-/**
- * إذا الصورة مجانية
- */
+// Propriété virtuelle pour vérifier si la photo est gratuite
 photoSchema.virtual('isFree').get(function () {
   return (this.pricePersonalTND || this.priceTND || 0) === 0 && (this.priceCommercialTND || 0) === 0;
 });
 
-// ============================================
-// Instance Methods / ميثودز الانستانس
-// ============================================
-
-/**
- * نزيدو تحميل بريفيو واحد
- */
+// Méthode d'instance pour augmenter le compteur de téléchargements d'aperçu de 1
 photoSchema.methods.incrementPreviewDownloads = async function () {
   this.previewDownloads += 1;
   await this.save();
 };
 
-/**
- * نزيدو شراء واحد
- */
+// Méthode d'instance pour augmenter le compteur d'achats de 1
 photoSchema.methods.incrementPurchases = async function () {
   this.purchases += 1;
   await this.save();
 };
 
+// Création du modèle Photo à partir du schéma défini
 const Photo = mongoose.model('Photo', photoSchema);
 
+// Exportation du modèle pour l'utiliser dans d'autres fichiers
 module.exports = Photo;

@@ -1,23 +1,15 @@
-/**
- * Pack Routes / راوتز الباكات العامة
- */
-
+// Importation du framework Express
 const express = require('express');
+// Création d'un routeur Express
 const router = express.Router();
+// Importation du contrôleur de packs
 const packController = require('../controllers/packController');
 
-/**
- * @desc    قائمة الباكات العامة
- * @route   GET /api/packs
- * @access  Public
- */
+// Route GET pour obtenir la liste de tous les packs publics
 router.get('/', packController.getAllPacks);
 
-/**
- * @desc    تفاصيل باك
- * @route   GET /api/packs/:id
- * @access  Public
- */
+// Route GET pour obtenir les détails d'un pack par son identifiant
 router.get('/:id', packController.getPack || ((req, res) => res.status(501).json({ message: 'Not implemented' })));
 
+// Exportation du routeur
 module.exports = router;

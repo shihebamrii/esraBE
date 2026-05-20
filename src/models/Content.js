@@ -1,164 +1,161 @@
-/**
- * Content Model / موديل المحتوى
- * هنا نخزنو بيانات الفيديوهات والبودكاست والريلز والأفلام الوثائقية
- */
-
+// Importation de la bibliothèque mongoose pour gérer la base de données MongoDB
 const mongoose = require('mongoose');
 
+// Définition du schéma pour le contenu (vidéos, podcasts, documentaires, etc.)
 const contentSchema = new mongoose.Schema(
   {
-    // العنوان
+    // Titre du contenu, obligatoire, avec une longueur maximale de 200 caractères
     title: {
       type: String,
-      required: [true, 'العنوان ضروري!'],
+      required: [true, 'Le titre est obligatoire !'],
       trim: true,
-      maxlength: [200, 'العنوان طويل برشا'],
+      maxlength: [200, 'Le titre est trop long'],
     },
 
-    // الوصف
+    // Description du contenu, avec une longueur maximale de 5000 caractères
     description: {
       type: String,
       trim: true,
-      maxlength: [5000, 'الوصف طويل برشا'],
+      maxlength: [5000, 'La description est trop longue'],
     },
 
-    // المؤلفين / المنتجين
+    // Liste des auteurs ou producteurs du contenu
     authors: [{
       type: String,
       trim: true,
     }],
 
-    // نوع المحتوى
+    // Type de contenu (vidéo, podcast, documentaire, etc.)
     type: {
       type: String,
-      required: [true, 'نوع المحتوى ضروري!'],
+      required: [true, 'Le type de contenu est obligatoire !'],
       trim: true,
     },
 
-    // المواضيع / الثيمات
+    // Liste des thèmes ou sujets du contenu
     themes: [{
       type: String,
       trim: true,
     }],
 
-    // المنطقة / الولاية
+    // Région ou gouvernorat lié au contenu
     region: {
       type: String,
       trim: true,
     },
 
-    // التاقز للبحث
+    // Mots-clés pour faciliter la recherche, en minuscules
     tags: [{
       type: String,
       lowercase: true,
       trim: true,
     }],
 
-    // اللغة
+    // Langue du contenu (arabe, français, anglais ou autre)
     language: {
       type: String,
       enum: ['ar', 'fr', 'en', 'other'],
       default: 'ar',
     },
 
-    // المدة بالثواني
+    // Durée du contenu en secondes
     duration: {
       type: Number,
       min: 0,
     },
 
-    // صورة مصغرة - مرجع GridFS
+    // Identifiant du fichier miniature stocké dans GridFS
     thumbnailFileId: {
       type: mongoose.Schema.Types.ObjectId,
     },
 
-    // الملف الرئيسي - مرجع GridFS
+    // Identifiant du fichier principal stocké dans GridFS, obligatoire
     fileFileId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: [true, 'ملف المحتوى ضروري!'],
+      required: [true, 'Le fichier du contenu est obligatoire !'],
     },
 
-    // حقوق الاستخدام
+    // Droits d'utilisation du contenu (gratuit, payant ou sous licence)
     rights: {
       type: String,
       enum: ['free', 'paid', 'license'],
       default: 'free',
     },
 
-    // السعر إذا كان مدفوع (بالدينار) - تراجع
+    // Prix du contenu en dinars, valeur par défaut 0
     price: {
       type: Number,
       min: 0,
       default: 0,
     },
 
-    // سعر الترخيص الشخصي
+    // Prix pour une licence personnelle
     pricePersonal: {
       type: Number,
       min: 0,
       default: 0,
     },
 
-    // سعر الترخيص التجاري
+    // Prix pour une licence commerciale
     priceCommercial: {
       type: Number,
       min: 0,
       default: 0,
     },
 
-    // معلومات الترخيص
+    // Informations sur la licence du contenu
     licenseInfo: {
       type: String,
       trim: true,
     },
 
-    // الرؤية - عام أو خاص
+    // Visibilité du contenu : public ou privé
     visibility: {
       type: String,
       enum: ['public', 'private'],
       default: 'public',
     },
 
-    // من رفع المحتوى
+    // Identifiant de l'utilisateur qui a créé le contenu, référence vers User
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
 
-    // تاريخ النشر
+    // Date de publication du contenu
     publishedAt: {
       type: Date,
     },
 
-    // ميتاداتا إضافية
+    // Métadonnées supplémentaires au format libre
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
 
-    // عدد المشاهدات
+    // Nombre de vues du contenu
     views: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // عدد التحميلات
+    // Nombre de téléchargements du contenu
     downloads: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // معلومات الملف
+    // Informations sur le fichier (nom, type MIME et taille en octets)
     fileInfo: {
       filename: String,
       contentType: String,
-      size: Number, // بالبايت
+      size: Number,
     },
 
-    // حالة الموافقة (للمحتوى المرفوع من المستخدمين)
+    // Statut d'approbation du contenu (en attente, approuvé ou rejeté)
     approvalStatus: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
@@ -166,17 +163,16 @@ const contentSchema = new mongoose.Schema(
     },
   },
   {
+    // Ajout automatique des champs createdAt et updatedAt
     timestamps: true,
+    // Inclusion des propriétés virtuelles lors de la conversion en JSON
     toJSON: { virtuals: true },
+    // Inclusion des propriétés virtuelles lors de la conversion en objet
     toObject: { virtuals: true },
   }
 );
 
-// ============================================
-// Indexes / الفهارس
-// ============================================
-
-// فهرس النص للبحث
+// Index de recherche textuelle sur le titre, la description et les mots-clés
 contentSchema.index(
   {
     title: 'text',
@@ -188,60 +184,52 @@ contentSchema.index(
   }
 );
 
-// فهارس للفلترة
+// Index pour filtrer par type de contenu
 contentSchema.index({ type: 1 });
+// Index pour filtrer par région
 contentSchema.index({ region: 1 });
+// Index pour filtrer par droits d'utilisation
 contentSchema.index({ rights: 1 });
+// Index pour filtrer par visibilité
 contentSchema.index({ visibility: 1 });
+// Index pour trier par date de création décroissante
 contentSchema.index({ createdAt: -1 });
+// Index pour trier par nombre de vues décroissant
 contentSchema.index({ views: -1 });
 
-// ============================================
-// Virtuals / الخصائص الافتراضية
-// ============================================
-
-/**
- * نرجعو إذا المحتوى مجاني
- */
+// Propriété virtuelle pour vérifier si le contenu est gratuit
 contentSchema.virtual('isFree').get(function () {
   return this.rights === 'free' || ((this.pricePersonal || this.price || 0) === 0 && (this.priceCommercial || 0) === 0);
 });
 
-/**
- * رابط الصورة المصغرة
- */
+// Propriété virtuelle pour obtenir l'URL de la miniature
 contentSchema.virtual('thumbnailUrl').get(function () {
+  // Retourne null si aucune miniature n'est définie
   if (!this.thumbnailFileId) return null;
+  // Construction de l'URL vers le fichier miniature
   return `/api/media/${this.thumbnailFileId}`;
 });
 
-/**
- * رابط المحتوى
- */
+// Propriété virtuelle pour obtenir l'URL du contenu
 contentSchema.virtual('contentUrl').get(function () {
+  // Construction de l'URL vers le fichier principal
   return `/api/media/${this.fileFileId}`;
 });
 
-// ============================================
-// Instance Methods / ميثودز الانستانس
-// ============================================
-
-/**
- * نزيدو مشاهدة واحدة
- */
+// Méthode d'instance pour augmenter le compteur de vues de 1
 contentSchema.methods.incrementViews = async function () {
   this.views += 1;
   await this.save();
 };
 
-/**
- * نزيدو تحميل واحد
- */
+// Méthode d'instance pour augmenter le compteur de téléchargements de 1
 contentSchema.methods.incrementDownloads = async function () {
   this.downloads += 1;
   await this.save();
 };
 
+// Création du modèle Content à partir du schéma défini
 const Content = mongoose.model('Content', contentSchema);
 
+// Exportation du modèle pour l'utiliser dans d'autres fichiers
 module.exports = Content;

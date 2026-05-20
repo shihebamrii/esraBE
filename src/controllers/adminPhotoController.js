@@ -1,43 +1,51 @@
-/**
- * Admin Photo Controller / كونترولر صور الأدمن
- * هنا نتعاملو مع رفع وإدارة صور Tounesna
- */
-
+// Importation des modèles Photo et AuditLog depuis le dossier des modèles
 const { Photo, AuditLog } = require('../models');
+
+// Importation des fonctions de téléchargement et de suppression GridFS
 const { uploadToGridFS, deleteFromGridFS } = require('../services/storageService');
+
+// Importation des fonctions de traitement d'image : basse résolution, filigrane et informations d'image
 const { createLowResVersion, addTiledWatermark, getImageInfo } = require('../services/imageProcessor');
+
+// Importation de la classe d'erreur personnalisée AppError
 const AppError = require('../utils/AppError');
+
+// Importation du wrapper asyncHandler pour la gestion des erreurs asynchrones
 const asyncHandler = require('../utils/asyncHandler');
+
+// Importation des services de notification pour avertir les utilisateurs
 const { notifyAllUsers, notifyUser } = require('../services/notificationService');
+
+// Importation de l'utilitaire de parsing JSON sécurisé
 const { safeParseJSON } = require('../utils/safeParser');
 
-/**
- * @desc    رفع صورة جديدة
- * @route   POST /api/admin/photos/upload
- * @access  Private (Admin/Uploader)
- */
+// Déclaration de la fonction pour télécharger une photo
 const uploadPhoto = asyncHandler(async (req, res, next) => {
-  // نتأكدو عندنا صورة
+  // Récupération du fichier haute résolution ou de l'image unique
   const highResFile = req.files?.highRes?.[0] || req.file;
+  // Récupération du fichier basse résolution s'il est fourni
   const lowResFile = req.files?.lowRes?.[0];
 
+  // Si aucun fichier haute résolution n'est fourni, on renvoie une erreur 400
   if (!highResFile) {
-    return next(new AppError('الصورة بالجودة العالية أو الفيديو ضروري!', 400));
+    return next(new AppError('La photo en haute résolution ou la vidéo est obligatoire !', 400));
   }
 
+  // Détection si le fichier téléchargé est une vidéo
   const isVideo = highResFile.mimetype.startsWith('video/');
 
+  // Une vidéo nécessite obligatoirement le téléchargement d'une miniature
   if (isVideo && !lowResFile) {
-    return next(new AppError('للفيديو، الرجاء رفع صورة مصغرة (Thumbnail)!', 400));
+    return next(new AppError('Pour la vidéo, veuillez télécharger une miniature (Thumbnail) !', 400));
   }
 
-  // نجيبو معلومات الصورة الأصلية
+  // Récupération des informations géométriques si c'est une image
   let highResInfo = {};
   if (!isVideo) {
     highResInfo = await getImageInfo(highResFile.buffer);
   }
 
-  // نرفعو الصورة بالجودة العالية
+  // Téléchargement du fichier haute résolution original dans GridFS
   const highResFileId = await uploadToGridFS(
     highResFile.buffer,
     highResFile.originalname,
@@ -49,16 +57,17 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     }
   );
 
-  // نعالجو الصورة بالجودة المنخفضة
+  // Initialisation des variables pour la version basse résolution
   let lowResBuffer;
   let lowResInfo;
 
+  // Traitement pour obtenir la version basse résolution
   if (lowResFile) {
-    // لو عندنا صورة منخفضة الجودة جاهزة
+    // Si l'utilisateur fournit lui-même le fichier basse résolution
     lowResBuffer = lowResFile.buffer;
     lowResInfo = await getImageInfo(lowResBuffer);
   } else {
-    // نعملو نسخة منخفضة الجودة من العالية
+    // Génération automatique d'une copie basse résolution à partir de la version haute résolution
     const lowResResult = await createLowResVersion(highResFile.buffer, {
       maxWidth: 800,
       maxHeight: 600,
@@ -69,15 +78,16 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     lowResInfo = lowResResult.info;
   }
 
-  // نضيفو watermark على الصورة المنخفضة
+  // Définition du texte de copyright ou d'attribution pour le filigrane
   const watermarkText = req.body.attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable';
+  // Ajout du filigrane répété sur l'image basse résolution
   const watermarkedBuffer = await addTiledWatermark(lowResBuffer, watermarkText, {
     fontSize: 16,
     opacity: 0.3,
     spacing: 200,
   });
 
-  // نرفعو الصورة المنخفضة مع الـ watermark
+  // Téléchargement de la version basse résolution filigranée dans GridFS
   const lowResFileId = await uploadToGridFS(
     watermarkedBuffer,
     `lowres_${highResFile.originalname}`,
@@ -90,7 +100,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     }
   );
 
-  // ناخذو البيانات من الـ body
+  // Extraction des données associées envoyées dans le corps de la requête
   const {
     title,
     description,
@@ -104,10 +114,10 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     tags,
   } = req.body;
 
-  // --- Parse user-provided tags ---
+  // Analyse et parsing sécurisé des étiquettes (tags)
   let finalTags = safeParseJSON(tags) || [];
 
-  // ننشئو الصورة
+  // Création du document Photo dans la base de données MongoDB
   const photo = await Photo.create({
     mediaType: isVideo ? 'video' : 'photo',
     title,
@@ -142,7 +152,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     },
   });
 
-  // نسجلو في الـ audit log
+  // Ajout de l'événement de création dans les journaux d'audit
   await AuditLog.log({
     userId: req.user._id,
     action: 'PHOTO_UPLOAD',
@@ -152,41 +162,45 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     result: 'success',
   });
 
-  // إرسال إشعار لكل المستخدمين
+  // Notification générale pour tous les utilisateurs
   await notifyAllUsers({
-    title: 'صورة جديدة!',
-    message: `تمت إضافه صورة جديدة من تونسنا: ${title}`,
+    title: 'Nouvelle photo !',
+    message: `Nouvelle photo Tounesna ajoutée : ${title}`,
     type: 'new_content',
     link: `/tounesna/${photo._id}`
   });
 
+  // Réponse HTTP de création réussie avec le document JSON
   res.status(201).json({
     status: 'success',
-    message: 'تم رفع الصورة بنجاح!',
+    message: 'Photo téléchargée avec succès !',
     data: { photo },
   });
 });
 
-/**
- * @desc    الحصول على كل الصور (للأدمن)
- * @route   GET /api/admin/photos
- * @access  Private (Admin)
- */
+// Déclaration de la fonction pour lister toutes les photos
 const getAllPhotos = asyncHandler(async (req, res, _next) => {
+  // Extraction des filtres et paramètres de pagination
   const { page = 1, limit = 20, governorate, landscapeType, sort = '-createdAt' } = req.query;
 
+  // Création de l'objet de filtres
   const query = {};
+  // Filtrage facultatif par gouvernorat
   if (governorate) query.governorate = governorate;
+  // Filtrage facultatif par type de paysage
   if (landscapeType) query.landscapeType = landscapeType;
 
+  // Recherche dans la base de données avec pagination et tri
   const photos = await Photo.find(query)
     .populate('createdBy', 'name email role')
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));
 
+  // Comptage total des photos correspondant aux filtres
   const total = await Photo.countDocuments(query);
 
+  // Envoi de la réponse contenant les résultats et la pagination
   res.status(200).json({
     status: 'success',
     results: photos.length,
@@ -197,29 +211,28 @@ const getAllPhotos = asyncHandler(async (req, res, _next) => {
   });
 });
 
-/**
- * @desc    تحديث صورة
- * @route   PUT /api/admin/photos/:id
- * @access  Private (Admin/Uploader - owner)
- */
+// Déclaration de la fonction de mise à jour d'une photo
 const updatePhoto = asyncHandler(async (req, res, next) => {
+  // Récupération de l'identifiant de la photo
   const { id } = req.params;
 
+  // Recherche de la photo en base de données
   const photo = await Photo.findById(id);
 
+  // Si la photo n'est pas trouvée, retour d'une erreur 404
   if (!photo) {
-    return next(new AppError('الصورة ما لقيناهاش!', 404));
+    return next(new AppError('Photo introuvable !', 404));
   }
 
-  // نتأكدو المستخدم عندو صلاحية
+  // Vérification de la permission de modification
   if (
     req.user.role !== 'admin' &&
     photo.createdBy.toString() !== req.user._id.toString()
   ) {
-    return next(new AppError('ما عندكش صلاحية تعدل على هالصورة!', 403));
+    return next(new AppError("Vous n'avez pas la permission de modifier cette photo !", 403));
   }
 
-  // الفيلدز الي نقدرو نحدثوها
+  // Liste des champs modifiables autorisés
   const allowedUpdates = [
     'title',
     'description',
@@ -234,6 +247,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     'tags',
   ];
 
+  // Construction de l'objet de mise à jour
   const updates = {};
   for (const field of allowedUpdates) {
     if (req.body[field] !== undefined) {
@@ -247,11 +261,13 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // Enregistrement des modifications dans la base de données
   const updatedPhoto = await Photo.findByIdAndUpdate(id, updates, {
     new: true,
     runValidators: true,
   });
 
+  // Enregistrement de l'action de modification dans le journal d'audit
   await AuditLog.log({
     userId: req.user._id,
     action: 'PHOTO_UPDATE',
@@ -262,38 +278,40 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     result: 'success',
   });
 
+  // Réponse HTTP de succès avec les données de la photo mise à jour
   res.status(200).json({
     status: 'success',
-    message: 'تم تحديث الصورة!',
+    message: 'Photo mise à jour !',
     data: { photo: updatedPhoto },
   });
 });
 
-/**
- * @desc    حذف صورة
- * @route   DELETE /api/admin/photos/:id
- * @access  Private (Admin)
- */
+// Déclaration de la fonction de suppression d'une photo
 const deletePhoto = asyncHandler(async (req, res, next) => {
+  // Récupération de l'identifiant
   const { id } = req.params;
 
+  // Recherche de la photo correspondante
   const photo = await Photo.findById(id);
 
+  // Si la photo n'existe pas, retour d'une erreur 404
   if (!photo) {
-    return next(new AppError('الصورة ما لقيناهاش!', 404));
+    return next(new AppError('Photo introuvable !', 404));
   }
 
-  // نمسحو الملفات من GridFS
+  // Suppression du fichier haute résolution dans GridFS
   if (photo.highResFileId) {
     await deleteFromGridFS(photo.highResFileId);
   }
+  // Suppression du fichier basse résolution dans GridFS
   if (photo.lowResFileId) {
     await deleteFromGridFS(photo.lowResFileId);
   }
 
-  // نمسحو من الداتابيز
+  // Suppression du document de la base de données
   await Photo.findByIdAndDelete(id);
 
+  // Enregistrement de la suppression dans le journal d'audit
   await AuditLog.log({
     userId: req.user._id,
     action: 'PHOTO_DELETE',
@@ -303,34 +321,38 @@ const deletePhoto = asyncHandler(async (req, res, next) => {
     result: 'success',
   });
 
+  // Réponse de succès de la suppression
   res.status(200).json({
     status: 'success',
-    message: 'تم حذف الصورة!',
+    message: 'Photo supprimée !',
   });
 });
 
-/**
- * @desc    الموافقة على صورة أو رفضها
- * @route   PUT /api/admin/photos/:id/approve
- * @access  Private (Admin)
- */
+// Déclaration de la fonction de validation de la photo
 const approvePhoto = asyncHandler(async (req, res, next) => {
+  // Récupération de l'identifiant
   const { id } = req.params;
-  const { status } = req.body; // 'approved' or 'rejected'
+  // Récupération du statut d'approbation
+  const { status } = req.body;
 
+  // Vérification de la validité du nouveau statut
   if (!['approved', 'rejected'].includes(status)) {
-    return next(new AppError('الحالة لازم تكون approved أو rejected!', 400));
+    return next(new AppError("Le statut doit être 'approved' ou 'rejected' !", 400));
   }
 
+  // Recherche de la photo correspondante
   const photo = await Photo.findById(id);
 
+  // Si la photo n'est pas trouvée, retour d'une erreur 404
   if (!photo) {
-    return next(new AppError('الصورة ما لقيناهاش!', 404));
+    return next(new AppError('Photo introuvable !', 404));
   }
 
+  // Modification et enregistrement du statut
   photo.approvalStatus = status;
   await photo.save({ validateBeforeSave: false });
 
+  // Enregistrement de l'action dans le journal d'audit
   await AuditLog.log({
     userId: req.user._id,
     action: 'PHOTO_APPROVE',
@@ -341,30 +363,32 @@ const approvePhoto = asyncHandler(async (req, res, next) => {
     result: 'success',
   });
 
-  // إرسال إشعار للمستخدم
+  // Envoi de notifications ciblées selon le résultat d'approbation
   if (status === 'approved') {
     await notifyUser(photo.createdBy, {
-      title: 'تمت الموافقة!',
-      message: `تمت الموافقة على صورتك: ${photo.title}`,
+      title: 'Approuvée !',
+      message: `Votre photo a été approuvée : ${photo.title}`,
       type: 'approval_status',
       link: `/tounesna/${photo._id}`
     });
   } else if (status === 'rejected') {
     await notifyUser(photo.createdBy, {
-      title: 'تم الرفض!',
-      message: `تم رفض صورتك: ${photo.title}`,
+      title: 'Rejetée !',
+      message: `Votre photo a été rejetée : ${photo.title}`,
       type: 'approval_status',
       link: `/profile`
     });
   }
 
+  // Réponse de succès finale avec les détails de la photo
   res.status(200).json({
     status: 'success',
-    message: `تم تغيير حالة الصورة إلى ${status}!`,
+    message: `Le statut de la photo a été changé en ${status}!`,
     data: { photo },
   });
 });
 
+// Exportation des fonctions de gestion de photos pour l'utilisation dans les routes
 module.exports = {
   uploadPhoto,
   getAllPhotos,

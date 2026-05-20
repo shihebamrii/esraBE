@@ -1,41 +1,37 @@
-/**
- * Safe JSON Parser Utility / أداة التحليل الآمن للـ JSON
- * تساعدنا في التعامل مع البيانات الجاية من multipart/form-data
- */
-
-/**
- * Parses a value that might be a JSON string, an array, or an object.
- * Returns an empty array or object if the value is empty or invalid.
- * 
- * @param {any} value - The value to parse
- * @param {any} defaultValue - The value to return if parsing fails (default: [])
- * @returns {any}
- */
+// Déclaration de la fonction pour analyser une valeur JSON de manière sécurisée
 const safeParseJSON = (value, defaultValue = []) => {
+  // Vérification si la valeur est indéfinie, nulle ou une chaîne vide
   if (value === undefined || value === null || value === '') {
+    // Retour de la valeur par défaut
     return defaultValue;
   }
 
-  // If it's already an array or object, return it (multer or other middleware might have parsed it)
+  // Si la valeur est déjà un objet ou un tableau, on la retourne directement
   if (typeof value === 'object') {
     return value;
   }
 
   try {
+    // Tentative d'analyse de la chaîne JSON et retour du résultat
     return JSON.parse(value);
   } catch (error) {
-    // If it's just a string that isn't JSON, and we expect an array, maybe it's a single value
+    // Si la valeur par défaut est un tableau et que la valeur est une chaîne de caractères
     if (Array.isArray(defaultValue) && typeof value === 'string') {
-      // Check if it looks like it was meant to be JSON (starts with [ or {)
+      // Suppression des espaces au début et à la fin de la chaîne
       const trimmed = value.trim();
+      // Si la chaîne ne commence ni par "[" ni par "{", c'est probablement une valeur simple
       if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+        // Retour de la valeur encapsulée dans un tableau
         return [value];
       }
     }
     
+    // Affichage d'un avertissement dans la console en cas d'échec de l'analyse
     console.error(`⚠️ Failed to parse JSON: ${value}. Returning default.`);
+    // Retour de la valeur par défaut
     return defaultValue;
   }
 };
 
+// Exportation de la fonction safeParseJSON
 module.exports = { safeParseJSON };
