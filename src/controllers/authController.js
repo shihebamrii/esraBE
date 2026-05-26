@@ -128,7 +128,7 @@ const login = asyncHandler(async (req, res, next) => {
       result: 'failure',
       errorMessage: 'User not found',
     });
-    return next(new AppError('E-mail ou mot de passe incorrect !', 401));
+    return next(new AppError('Aucun compte trouvé avec cet e-mail !', 401));
   }
 
   // Vérification que le compte est actif
@@ -149,7 +149,7 @@ const login = asyncHandler(async (req, res, next) => {
       result: 'failure',
       errorMessage: 'Wrong password',
     });
-    return next(new AppError('E-mail ou mot de passe incorrect !', 401));
+    return next(new AppError('Mot de passe incorrect !', 401));
   }
 
   // Génération du token d'accès JWT
