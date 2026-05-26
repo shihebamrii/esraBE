@@ -231,27 +231,47 @@ const addImageWatermark = async (buffer, watermarkBuffer, options = {}) => {
     .toBuffer();
 };
 
-// Déclaration de la fonction asynchrone pour ajouter un filigrane en mosaïque sur toute l'image
-const addTiledWatermark = async (buffer, watermarkBuffer, options = {}) => {
+// Déclaration de la fonction asynchrone pour ajouter un filigrane texte en mosaïque sur toute l'image
+const addTiledWatermark = async (buffer, text, options = {}) => {
   // Extraction des options avec des valeurs par défaut
   const {
-    width = 100,
+    fontSize = 16,
     opacity = 0.3,
+    spacing = 200,
+    color = '255, 255, 255',
   } = options;
 
-  // Redimensionnement du filigrane et application de l'opacité
-  const resizedWatermark = await sharp(watermarkBuffer)
-    .resize(width)
-    .ensureAlpha(opacity)
-    .toBuffer();
+  // Récupération des dimensions de l'image originale
+  const metadata = await sharp(buffer).metadata();
+  const imgWidth = metadata.width;
+  const imgHeight = metadata.height;
 
-  // Superposition du filigrane en mode mosaïque (répété) sur toute l'image
+  // Dimensions de la tuile de filigrane (texte + espacement)
+  const tileWidth = Math.max(spacing, text.length * fontSize * 0.7);
+  const tileHeight = spacing;
+
+  // Création d'un SVG avec le texte du filigrane en mosaïque couvrant toute l'image
+  const cols = Math.ceil(imgWidth / tileWidth) + 1;
+  const rows = Math.ceil(imgHeight / tileHeight) + 1;
+
+  let textElements = '';
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col * tileWidth + tileWidth / 2;
+      const y = row * tileHeight + tileHeight / 2;
+      textElements += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-30, ${x}, ${y})" fill="rgba(${color}, ${opacity})" font-size="${fontSize}px" font-family="Arial, sans-serif" font-weight="bold">${text}</text>`;
+    }
+  }
+
+  const svgOverlay = `<svg width="${imgWidth}" height="${imgHeight}" xmlns="http://www.w3.org/2000/svg">${textElements}</svg>`;
+
+  // Superposition du filigrane SVG sur l'image originale
   return sharp(buffer)
     .composite([
       {
-        input: resizedWatermark,
-        // Activation du mode mosaïque pour répéter le filigrane
-        tile: true,
+        input: Buffer.from(svgOverlay),
+        // Position en haut à gauche pour couvrir toute l'image
+        gravity: 'northwest',
       },
     ])
     .toBuffer();
