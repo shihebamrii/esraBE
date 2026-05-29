@@ -21,8 +21,17 @@ const authValidation = {
       'string.empty': 'Le mot de passe est obligatoire !',
       'string.min': 'Le mot de passe doit contenir au moins 8 caractères',
     }),
-    // Le téléphone est optionnel et peut être vide
-    phone: Joi.string().allow('').optional(),
+    // Le téléphone est obligatoire
+    phone: Joi.string().min(8).required().messages({
+      'string.empty': 'Le numéro de téléphone est obligatoire !',
+      'string.min': 'Le numéro de téléphone doit contenir au moins 8 caractères',
+    }),
+    // L'adresse est optionnelle
+    address: Joi.string().allow('').optional(),
+    // La biographie est optionnelle
+    bio: Joi.string().max(500).allow('').optional().messages({
+      'string.max': 'La biographie est trop longue (maximum 500 caractères)',
+    }),
     // La langue est optionnelle avec une valeur par défaut "ar"
     locale: Joi.string().valid('ar', 'fr', 'en').default('ar'),
     // Le rôle est optionnel et ne peut être que "user"
@@ -42,6 +51,12 @@ const authValidation = {
     }),
     // Le téléphone est optionnel et peut être vide
     phone: Joi.string().allow('').optional(),
+    // L'adresse est optionnelle
+    address: Joi.string().allow('').optional(),
+    // La biographie est optionnelle
+    bio: Joi.string().max(500).allow('').optional().messages({
+      'string.max': 'La biographie est trop longue (maximum 500 caractères)',
+    }),
     // La langue est optionnelle
     locale: Joi.string().valid('ar', 'fr', 'en').optional(),
     // Le mot de passe actuel est optionnel

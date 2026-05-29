@@ -82,7 +82,7 @@ const addToCart = asyncHandler(async (req, res, next) => {
       // Si le contenu n'existe pas, on renvoie une erreur 404
       if (!item) return next(new AppError('Contenu introuvable !', 404));
       // Si le contenu est gratuit, on ne peut pas l'ajouter au panier
-      if (item.rights === 'free') return next(new AppError('Le contenu est gratuit !', 400));
+      if (item.isFree) return next(new AppError('Le contenu est gratuit !', 400));
       // Détermination du prix selon le type de licence
       if (licenseType === 'commercial') {
         price = item.priceCommercial || item.price;

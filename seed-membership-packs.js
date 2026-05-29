@@ -109,22 +109,7 @@ const seedPacks = async () => {
         },
         createdBy: admin._id,
       },
-      // WELCOME PACK
-      {
-        title: 'Welcome Pack',
-        description: 'A gift for joining our vision. Includes 1 free video download from the Impact module.',
-        type: 'membership',
-        priceTND: 0,
-        membershipFeatures: {
-          photosLimit: 0,
-          reelsLimit: 0,
-          videosLimit: 1,
-          documentariesLimit: 0,
-          quality: 'standard',
-          module: 'impact'
-        },
-        createdBy: admin._id,
-      }
+
     ];
 
     for (const packData of membershipPacks) {

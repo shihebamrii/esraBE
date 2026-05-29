@@ -147,8 +147,10 @@ const handleWebhook = asyncHandler(async (req, res, next) => {
               module: pack.membershipFeatures.module,
               quotas: {
                 photosRemaining: pack.membershipFeatures.photosLimit || 0,
-                reelsRemaining: pack.membershipFeatures.reelsLimit || 0,
-                videosRemaining: pack.membershipFeatures.videosLimit || 0,
+                reelsRemaining: pack.membershipFeatures.module === 'impact' ? 0 : (pack.membershipFeatures.reelsLimit || 0),
+                videosRemaining: pack.membershipFeatures.module === 'impact'
+                  ? (pack.membershipFeatures.videosLimit || 0) + (pack.membershipFeatures.reelsLimit || 0)
+                  : (pack.membershipFeatures.videosLimit || 0),
                 documentariesRemaining: pack.membershipFeatures.documentariesLimit || 0,
                 podcastsRemaining: pack.membershipFeatures.podcastsLimit || 0,
                 successStoryRemaining: pack.membershipFeatures.successStoryLimit || 0,

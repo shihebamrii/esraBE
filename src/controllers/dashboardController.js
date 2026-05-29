@@ -14,11 +14,34 @@ const getUserPacks = asyncHandler(async (req, res, next) => {
     // Trier par date de création décroissante (plus récent en premier)
     .sort({ createdAt: -1 });
 
+  // Migrer à la volée les quotas des packs Impact pour une compatibilité parfaite
+  const migratedPacks = packs.map(p => {
+    const packObj = p.toObject();
+    if (packObj.module === 'impact') {
+      const reelsLimit = packObj.packId?.membershipFeatures?.reelsLimit || 0;
+      const videosLimit = packObj.packId?.membershipFeatures?.videosLimit || 0;
+      const reelsRemaining = packObj.quotas?.reelsRemaining || 0;
+      const videosRemaining = packObj.quotas?.videosRemaining || 0;
+
+      if (reelsLimit > 0 || reelsRemaining > 0) {
+        if (packObj.packId && packObj.packId.membershipFeatures) {
+          packObj.packId.membershipFeatures.videosLimit = videosLimit + reelsLimit;
+          packObj.packId.membershipFeatures.reelsLimit = 0;
+        }
+        if (packObj.quotas) {
+          packObj.quotas.videosRemaining = videosRemaining + reelsRemaining;
+          packObj.quotas.reelsRemaining = 0;
+        }
+      }
+    }
+    return packObj;
+  });
+
   // Envoyer la réponse avec le statut 200 et la liste des packs
   res.status(200).json({
     status: 'success',
-    results: packs.length,
-    data: { packs },
+    results: migratedPacks.length,
+    data: { packs: migratedPacks },
   });
 });
 

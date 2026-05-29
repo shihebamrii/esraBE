@@ -24,6 +24,10 @@ const startServer = async () => {
     // نوصلو بالداتابيز أول
     await connectDB();
 
+    // تشغيل الهجرات التلقائية لقاعدة البيانات / Run automatic DB migrations
+    const { runAutomaticMigrations } = require('./src/utils/dbMigration');
+    await runAutomaticMigrations();
+
     // نشغلو السيرفر
     const server = app.listen(config.server.port, () => {
       console.log(`🚀 Server running in ${config.server.env} mode on port ${config.server.port}`);

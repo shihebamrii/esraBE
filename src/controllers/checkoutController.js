@@ -57,9 +57,15 @@ const redeemDownload = asyncHandler(async (req, res, next) => {
     quotaField = 'photosRemaining';
   } else {
     // Pour le contenu, on détermine le quota selon le sous-type
-    if (item.type === 'reel') quotaField = 'reelsRemaining';
+    if (item.type === 'reel') quotaField = 'videosRemaining'; // Unify reels under standard videos quota
     else if (item.type === 'documentary') quotaField = 'documentariesRemaining';
     else quotaField = 'videosRemaining';
+  }
+
+  // Support for legacy active packs: if videosRemaining is 0 but they still have reelsRemaining, dynamically migrate them on the fly!
+  if (module === 'impact' && quotaField === 'videosRemaining' && userPack.quotas.videosRemaining <= 0 && userPack.quotas.reelsRemaining > 0) {
+    userPack.quotas.videosRemaining += userPack.quotas.reelsRemaining;
+    userPack.quotas.reelsRemaining = 0;
   }
 
   // Vérification que le quota n'est pas épuisé

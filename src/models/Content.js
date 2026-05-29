@@ -199,6 +199,8 @@ contentSchema.index({ views: -1 });
 
 // Propriété virtuelle pour vérifier si le contenu est gratuit
 contentSchema.virtual('isFree').get(function () {
+  const hasPrice = (this.pricePersonal && this.pricePersonal > 0) || (this.price && this.price > 0) || (this.priceCommercial && this.priceCommercial > 0);
+  if (hasPrice) return false;
   return this.rights === 'free' || ((this.pricePersonal || this.price || 0) === 0 && (this.priceCommercial || 0) === 0);
 });
 

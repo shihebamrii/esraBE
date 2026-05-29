@@ -129,7 +129,7 @@ const uploadContent = asyncHandler(async (req, res, next) => {
     duration: duration ? parseFloat(duration) : undefined,
     thumbnailFileId,
     fileFileId,
-    rights: rights || 'free',
+    rights: rights === 'premium' ? 'paid' : (rights || 'free'),
     price: price ? parseFloat(price) : (pricePersonal ? parseFloat(pricePersonal) : 0),
     pricePersonal: pricePersonal ? parseFloat(pricePersonal) : (price ? parseFloat(price) : 0),
     priceCommercial: priceCommercial ? parseFloat(priceCommercial) : 0,
@@ -261,10 +261,98 @@ const updateContent = asyncHandler(async (req, res, next) => {
         updates[field] = safeParseJSON(req.body[field], field === 'metadata' ? {} : []);
       } else if (['price', 'pricePersonal', 'priceCommercial', 'duration'].includes(field)) {
         updates[field] = parseFloat(req.body[field]) || 0;
+      } else if (field === 'rights') {
+        updates[field] = req.body[field] === 'premium' ? 'paid' : req.body[field];
       } else {
         updates[field] = req.body[field];
       }
     }
+  }
+
+  // Keep price and pricePersonal synchronized
+  if (updates.pricePersonal !== undefined) {
+    updates.price = updates.pricePersonal;
+  } else if (updates.price !== undefined) {
+    updates.pricePersonal = updates.price;
+  }
+
+  // Gestion du téléchargement des nouveaux fichiers
+  const mainFile = req.files?.file?.[0];
+  const thumbnailFile = req.files?.thumbnail?.[0];
+
+  if (mainFile) {
+    let finalVideoBuffer = mainFile.buffer;
+    let videoMetadata = {};
+
+    if (mainFile.mimetype.startsWith('video/')) {
+      const processed = await ensureCompatibleCodec(mainFile.buffer, mainFile.originalname);
+      finalVideoBuffer = processed.buffer;
+      videoMetadata = processed.info;
+    }
+
+    // Supprimer l'ancien fichier de GridFS s'il existe
+    if (content.fileFileId) {
+      try {
+        await deleteFromGridFS(content.fileFileId);
+      } catch (err) {
+        console.error("Failed to delete old file file from GridFS:", err);
+      }
+    }
+
+    // Télécharger le nouveau fichier dans GridFS
+    const fileFileId = await uploadToGridFS(
+      finalVideoBuffer,
+      mainFile.originalname,
+      mainFile.mimetype,
+      {
+        uploadedBy: req.user._id,
+        type: 'content',
+        codec: videoMetadata.codec,
+      }
+    );
+
+    updates.fileFileId = fileFileId;
+    updates.fileInfo = {
+      filename: mainFile.originalname,
+      contentType: mainFile.mimetype,
+      size: finalVideoBuffer.length,
+      duration: videoMetadata.duration || parseFloat(req.body.duration) || content.duration,
+      width: videoMetadata.width,
+      height: videoMetadata.height,
+      codec: videoMetadata.codec,
+    };
+    if (videoMetadata.duration) {
+      updates.duration = videoMetadata.duration;
+    }
+  }
+
+  if (thumbnailFile) {
+    // Supprimer l'ancienne miniature de GridFS s'il existe
+    if (content.thumbnailFileId) {
+      try {
+        await deleteFromGridFS(content.thumbnailFileId);
+      } catch (err) {
+        console.error("Failed to delete old thumbnail file from GridFS:", err);
+      }
+    }
+
+    const thumbnailBuffer = await createThumbnail(thumbnailFile.buffer, {
+      width: 640,
+      height: 360,
+      fit: 'cover',
+    });
+
+    const thumbnailFileId = await uploadToGridFS(
+      thumbnailBuffer,
+      `thumb_${mainFile ? mainFile.originalname : content.title}.jpg`,
+      'image/jpeg',
+      {
+        uploadedBy: req.user._id,
+        type: 'thumbnail',
+      }
+    );
+
+    updates.thumbnailFileId = thumbnailFileId;
   }
 
   // Mise à jour de la date de publication si la visibilité passe au public

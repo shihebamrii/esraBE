@@ -22,7 +22,7 @@ const config = require('../config');
 // Déclaration de la fonction d'inscription d'un nouvel utilisateur
 const register = asyncHandler(async (req, res, _next) => {
   // Extraction des données d'inscription depuis le corps de la requête
-  const { name, email, password, phone, address, locale, role } = req.body;
+  const { name, email, password, phone, address, bio, locale, role } = req.body;
 
   // Initialisation du rôle par défaut à 'user'
   let userRole = 'user';
@@ -38,6 +38,7 @@ const register = asyncHandler(async (req, res, _next) => {
     passwordHash: password,
     phone,
     address,
+    bio,
     role: userRole,
     locale: locale || 'ar',
   });
@@ -63,33 +64,7 @@ const register = asyncHandler(async (req, res, _next) => {
     result: 'success',
   });
 
-  // Attribution du pack de bienvenue gratuit pour les vidéos Impact
-  try {
-    // Recherche du pack de bienvenue dans la base de données
-    const welcomePack = await Pack.findOne({ title: 'Welcome Pack' });
-    // Si le pack existe, on l'attribue au nouvel utilisateur
-    if (welcomePack) {
-      await UserPack.create({
-        userId: user._id,
-        packId: welcomePack._id,
-        orderId: user._id,
-        module: welcomePack.membershipFeatures.module,
-        quotas: {
-          photosRemaining: welcomePack.membershipFeatures.photosLimit || 0,
-          reelsRemaining: welcomePack.membershipFeatures.reelsLimit || 0,
-          videosRemaining: welcomePack.membershipFeatures.videosLimit || 1,
-          documentariesRemaining: welcomePack.membershipFeatures.documentariesLimit || 0,
-          podcastsRemaining: welcomePack.membershipFeatures.podcastsLimit || 0,
-          successStoryRemaining: welcomePack.membershipFeatures.successStoryLimit || 0,
-        },
-        quality: welcomePack.membershipFeatures.quality,
-        isActive: true,
-      });
-    }
-  } catch (error) {
-    // En cas d'erreur non critique, on affiche l'erreur et on continue
-    console.error('Failed to grant welcome pack:', error);
-  }
+
 
   // Envoi de la réponse de succès avec les données de l'utilisateur et les tokens
   res.status(201).json({
@@ -100,8 +75,12 @@ const register = asyncHandler(async (req, res, _next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        address: user.address,
+        bio: user.bio,
         role: user.role,
         locale: user.locale,
+        profilePictureFileId: user.profilePictureFileId,
       },
       accessToken,
       refreshToken,
@@ -188,8 +167,12 @@ const login = asyncHandler(async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        address: user.address,
+        bio: user.bio,
         role: user.role,
         locale: user.locale,
+        profilePictureFileId: user.profilePictureFileId,
       },
       accessToken,
       refreshToken,

@@ -261,6 +261,145 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // Synchronize priceTND and pricePersonalTND
+  if (updates.pricePersonalTND !== undefined) {
+    updates.priceTND = updates.pricePersonalTND;
+  } else if (updates.priceTND !== undefined) {
+    updates.pricePersonalTND = updates.priceTND;
+  }
+
+  // File replacement logic
+  const highResFile = req.files?.highRes?.[0] || req.file;
+  const lowResFile = req.files?.lowRes?.[0];
+
+  if (highResFile) {
+    const isVideo = highResFile.mimetype.startsWith('video/');
+
+    let highResInfo = {};
+    if (!isVideo) {
+      highResInfo = await getImageInfo(highResFile.buffer);
+    }
+
+    // Supprimer l'ancien fichier de GridFS s'il existe
+    if (photo.highResFileId) {
+      try {
+        await deleteFromGridFS(photo.highResFileId);
+      } catch (err) {
+        console.error("Failed to delete old high-res file from GridFS:", err);
+      }
+    }
+
+    // Télécharger le nouveau fichier original dans GridFS
+    const highResFileId = await uploadToGridFS(
+      highResFile.buffer,
+      highResFile.originalname,
+      highResFile.mimetype,
+      {
+        uploadedBy: req.user._id,
+        type: isVideo ? 'photo-video' : 'photo-highres',
+        ...highResInfo,
+      }
+    );
+
+    updates.highResFileId = highResFileId;
+    updates.mediaType = isVideo ? 'video' : 'photo';
+
+    if (!updates.fileInfo) updates.fileInfo = photo.fileInfo ? { ...photo.fileInfo } : {};
+    updates.fileInfo.highRes = {
+      filename: highResFile.originalname,
+      contentType: highResFile.mimetype,
+      size: highResFile.size,
+      width: highResInfo.width,
+      height: highResInfo.height,
+    };
+
+    // Auto-generate watermarked low-res preview if it's a photo and no custom preview is provided
+    if (!lowResFile && !isVideo) {
+      const lowResResult = await createLowResVersion(highResFile.buffer, {
+        maxWidth: 800,
+        maxHeight: 600,
+        quality: 70,
+        format: 'jpeg',
+      });
+      const lowResBuffer = lowResResult.buffer;
+      const lowResInfo = lowResResult.info;
+
+      const watermarkText = req.body.attributionText || photo.attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable';
+      const watermarkedBuffer = await addTiledWatermark(lowResBuffer, watermarkText, {
+        fontSize: 16,
+        opacity: 0.3,
+        spacing: 200,
+      });
+
+      if (photo.lowResFileId) {
+        try {
+          await deleteFromGridFS(photo.lowResFileId);
+        } catch (err) {}
+      }
+
+      const lowResFileId = await uploadToGridFS(
+        watermarkedBuffer,
+        `lowres_${highResFile.originalname}`,
+        'image/jpeg',
+        {
+          uploadedBy: req.user._id,
+          type: 'photo-lowres',
+          watermarked: true,
+          ...lowResInfo,
+        }
+      );
+
+      updates.lowResFileId = lowResFileId;
+      updates.fileInfo.lowRes = {
+        filename: `lowres_${highResFile.originalname}`,
+        contentType: 'image/jpeg',
+        size: watermarkedBuffer.length,
+        width: lowResInfo.width,
+        height: lowResInfo.height,
+      };
+    }
+  }
+
+  if (lowResFile) {
+    const lowResBuffer = lowResFile.buffer;
+    const lowResInfo = await getImageInfo(lowResBuffer);
+
+    const watermarkText = req.body.attributionText || photo.attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable';
+    const watermarkedBuffer = await addTiledWatermark(lowResBuffer, watermarkText, {
+      fontSize: 16,
+      opacity: 0.3,
+      spacing: 200,
+    });
+
+    if (photo.lowResFileId) {
+      try {
+        await deleteFromGridFS(photo.lowResFileId);
+      } catch (err) {}
+    }
+
+    const lowResFileId = await uploadToGridFS(
+      watermarkedBuffer,
+      `lowres_${highResFile ? highResFile.originalname : photo.fileInfo?.highRes?.filename || 'edit'}.jpg`,
+      'image/jpeg',
+      {
+        uploadedBy: req.user._id,
+        type: 'photo-lowres',
+        watermarked: true,
+        ...lowResInfo,
+      }
+    );
+
+    updates.lowResFileId = lowResFileId;
+    if (!updates.fileInfo) updates.fileInfo = photo.fileInfo ? { ...photo.fileInfo } : {};
+    updates.fileInfo.lowRes = {
+      filename: `lowres_${highResFile ? highResFile.originalname : photo.fileInfo?.highRes?.filename || 'edit'}.jpg`,
+      contentType: 'image/jpeg',
+      size: watermarkedBuffer.length,
+      width: lowResInfo.width,
+      height: lowResInfo.height,
+    };
+  }
+
   // Enregistrement des modifications dans la base de données
   const updatedPhoto = await Photo.findByIdAndUpdate(id, updates, {
     new: true,
