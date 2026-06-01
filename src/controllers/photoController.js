@@ -206,8 +206,8 @@ const getPhoto = asyncHandler(async (req, res, next) => {
   } else {
     obj.previewUrl = `/api/photos/${photo._id}/preview`;
   }
-  // Pour les vidéos, ajouter l'URL haute résolution
-  if (photo.mediaType === 'video' && photo.highResFileId) {
+  // Pour les vidéos ou les photos gratuites, ajouter l'URL haute résolution
+  if ((photo.mediaType === 'video' || photo.isFree) && photo.highResFileId) {
     obj.highResUrl = `/api/media/${photo.highResFileId}`;
   }
 
