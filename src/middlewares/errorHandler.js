@@ -15,10 +15,57 @@ const handleCastErrorDB = (err) => {
 const handleDuplicateFieldsDB = (err) => {
   // Importation de la classe d'erreur personnalisée
   const AppError = require('../utils/AppError');
-  // Extraction de la valeur dupliquée depuis le message d'erreur
-  const value = err.errmsg?.match(/(["'])(\\?.)*?\1/)?.[0] || 'unknown';
-  // Création d'un message d'erreur indiquant la valeur dupliquée
-  const message = `Valeur dupliquée : ${value}. Veuillez utiliser une autre valeur !`;
+
+  let field = '';
+  let value = '';
+
+  // Extraction de la valeur et de la clé dupliquée depuis keyValue ou le message d'erreur
+  if (err.keyValue) {
+    const keys = Object.keys(err.keyValue);
+    if (keys.length > 0) {
+      field = keys[0];
+      value = err.keyValue[field];
+    }
+  } else {
+    // Extraction depuis errmsg ou message (fallback)
+    const msg = err.errmsg || err.message || '';
+    
+    // Exemple d'errmsg: index: email_1 dup key: { email: "chihebamri@gmail.com" }
+    const indexMatch = msg.match(/index:\s+([a-zA-Z0-9_-]+)/);
+    if (indexMatch) {
+      field = indexMatch[1].replace(/_\d+$/, ''); // Supprime le _1, _2 à la fin de l'index
+    }
+    
+    const valueMatch = msg.match(/(["'])(\\?.)*?\1/);
+    if (valueMatch) {
+      value = valueMatch[0].replace(/['"]/g, '');
+    } else {
+      const dupKeyMatch = msg.match(/dup key:\s*\{\s*([^:]+):\s*"([^"]+)"\s*\}/);
+      if (dupKeyMatch) {
+        field = dupKeyMatch[1].trim();
+        value = dupKeyMatch[2].trim();
+      }
+    }
+  }
+
+  // Si on n'a pas trouvé de champ, on essaie de deviner si le message contient 'email'
+  if (!field && (err.errmsg || err.message || '').includes('email')) {
+    field = 'email';
+  }
+
+  let message = `Valeur dupliquée. Veuillez utiliser une autre valeur !`;
+  
+  if (field === 'email') {
+    message = `Cette adresse e-mail est déjà associée à un compte. Veuillez vous connecter ou utiliser une autre adresse.`;
+  } else if (field === 'username' || field === 'pseudo') {
+    message = `Ce nom d'utilisateur est déjà pris. Veuillez en choisir un autre.`;
+  } else if (field) {
+    const formattedField = field.charAt(0).toUpperCase() + field.slice(1);
+    message = `La valeur pour le champ "${formattedField}" est déjà utilisée. Veuillez en choisir une autre.`;
+  } else if (value && value !== 'unknown') {
+    message = `La valeur "${value}" existe déjà. Veuillez utiliser une autre valeur.`;
+  }
+
   // Retour d'une nouvelle erreur avec le code 400
   return new AppError(message, 400);
 };
@@ -88,27 +135,31 @@ const errorHandler = (err, _req, res, _next) => {
   // Définition du statut par défaut à 'error' si non défini
   err.status = err.status || 'error';
 
+  // Transformation des erreurs connues pour obtenir des messages conviviaux et des codes de statut corrects
+  let error = err;
+
+  if (err.name === 'CastError') {
+    error = handleCastErrorDB(err);
+    error.stack = err.stack;
+  } else if (err.code === 11000) {
+    error = handleDuplicateFieldsDB(err);
+    error.stack = err.stack;
+  } else if (err.name === 'ValidationError') {
+    error = handleValidationErrorDB(err);
+    error.stack = err.stack;
+  } else if (err.name === 'JsonWebTokenError') {
+    error = handleJWTError();
+    error.stack = err.stack;
+  } else if (err.name === 'TokenExpiredError') {
+    error = handleJWTExpiredError();
+    error.stack = err.stack;
+  }
+
   // En mode développement, envoyer tous les détails de l'erreur
   if (config.server.isDev) {
-    sendErrorDev(err, res);
+    sendErrorDev(error, res);
   } else {
-    // En mode production, filtrer et transformer les erreurs
-    let error = { ...err };
-    // Copie du message d'erreur original
-    error.message = err.message;
-
-    // Transformation des erreurs CastError de MongoDB
-    if (err.name === 'CastError') error = handleCastErrorDB(error);
-    // Transformation des erreurs de clé dupliquée
-    if (err.code === 11000) error = handleDuplicateFieldsDB(error);
-    // Transformation des erreurs de validation
-    if (err.name === 'ValidationError') error = handleValidationErrorDB(error);
-    // Transformation des erreurs de jeton JWT invalide
-    if (err.name === 'JsonWebTokenError') error = handleJWTError();
-    // Transformation des erreurs de jeton JWT expiré
-    if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
-
-    // Envoi de la réponse d'erreur filtrée
+    // En mode production, envoyer uniquement la réponse d'erreur filtrée
     sendErrorProd(error, res);
   }
 };
