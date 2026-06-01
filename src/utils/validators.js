@@ -134,6 +134,10 @@ const contentValidation = {
     rights: Joi.string().valid('free', 'paid', 'license').default('free'),
     // Le prix par défaut est 0
     price: Joi.number().min(0).default(0),
+    // Le prix personnel par défaut est 0
+    pricePersonal: Joi.number().min(0).default(0),
+    // Le prix commercial par défaut est 0
+    priceCommercial: Joi.number().min(0).default(0),
     // Les informations de licence sont optionnelles
     licenseInfo: Joi.string().allow(''),
     // La visibilité par défaut est "public"
@@ -164,6 +168,10 @@ const contentValidation = {
     type: Joi.string().valid('video', 'audio', 'reel', 'documentary', 'podcast'),
     // Le prix est optionnel
     price: Joi.number().min(0),
+    // Le prix personnel est optionnel
+    pricePersonal: Joi.number().min(0),
+    // Le prix commercial est optionnel
+    priceCommercial: Joi.number().min(0),
     // Les informations de licence sont optionnelles
     licenseInfo: Joi.string().allow(''),
     // La visibilité est optionnelle
@@ -211,6 +219,10 @@ const photoValidation = {
     landscapeType: Joi.string().valid('sea', 'desert', 'mountain', 'village', 'oasis', 'forest', 'city', 'historical', 'other').required(),
     // Le prix en dinars tunisiens est obligatoire et positif ou nul
     priceTND: Joi.number().min(0).required(),
+    // Le prix personnel en dinars tunisiens est optionnel
+    pricePersonalTND: Joi.number().min(0),
+    // Le prix commercial en dinars tunisiens est optionnel
+    priceCommercialTND: Joi.number().min(0),
     // Le filigrane est activé par défaut
     watermark: Joi.boolean().default(true),
     // Le texte d'attribution par défaut
@@ -231,6 +243,10 @@ const photoValidation = {
     landscapeType: Joi.string().valid('sea', 'desert', 'mountain', 'village', 'oasis', 'forest', 'city', 'historical', 'other'),
     // Le prix est optionnel
     priceTND: Joi.number().min(0),
+    // Le prix personnel est optionnel
+    pricePersonalTND: Joi.number().min(0),
+    // Le prix commercial est optionnel
+    priceCommercialTND: Joi.number().min(0),
     // Le filigrane est optionnel
     watermark: Joi.boolean(),
     // Le texte d'attribution est optionnel
@@ -286,6 +302,10 @@ const packValidation = {
       videosLimit: Joi.number().min(0),
       // Limite de documentaires
       documentariesLimit: Joi.number().min(0),
+      // Limite de podcasts
+      podcastsLimit: Joi.number().min(0),
+      // Limite de success stories
+      successStoryLimit: Joi.number().min(0),
       // Qualité du contenu
       quality: Joi.string().valid('standard', 'hd', '4k'),
       // Module associé
@@ -317,6 +337,8 @@ const packValidation = {
       reelsLimit: Joi.number().min(0),
       videosLimit: Joi.number().min(0),
       documentariesLimit: Joi.number().min(0),
+      podcastsLimit: Joi.number().min(0),
+      successStoryLimit: Joi.number().min(0),
       quality: Joi.string().valid('standard', 'hd', '4k'),
       module: Joi.string().valid('tounesna', 'impact', 'both'),
     }),
