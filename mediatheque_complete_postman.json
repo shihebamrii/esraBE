@@ -1,0 +1,1300 @@
+{
+  "info": {
+    "name": "Médiathèque API - Complete",
+    "description": "Complete and perfectly linked Postman collection for the Médiathèque API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "contentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fileId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "photoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "packId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "playlistId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inquiryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Test123!\",\n  \"locale\": \"ar\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"esra.ones@beestory.tn\",\n  \"password\": \"12345678\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/refresh-token",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your-refresh-token\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Contents & Media",
+      "item": [
+        {
+          "name": "List Contents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.contents && json.data.contents.length > 0) {",
+                  "    pm.collectionVariables.set('contentId', json.data.contents[0]._id);",
+                  "    if (json.data.contents[0].contentUrl) {",
+                  "      var parts = json.data.contents[0].contentUrl.split('/');",
+                  "      pm.collectionVariables.set('fileId', parts[parts.length - 1]);",
+                  "    }",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/contents?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contents"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Content",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/contents/{{contentId}}"
+          }
+        },
+        {
+          "name": "Stream Media",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/media/{{fileId}}",
+            "header": [
+              {
+                "key": "Range",
+                "value": "bytes=0-1024"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Photos & Packs",
+      "item": [
+        {
+          "name": "List Photos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.photos && json.data.photos.length > 0) {",
+                  "    pm.collectionVariables.set('photoId', json.data.photos[0]._id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/photos?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "photos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Photo",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/photos/{{photoId}}"
+          }
+        },
+        {
+          "name": "Get Preview (Watermarked)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/photos/{{photoId}}/preview"
+          }
+        },
+        {
+          "name": "List Packs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.packs && json.data.packs.length > 0) {",
+                  "    pm.collectionVariables.set('packId', json.data.packs[0]._id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/packs"
+          }
+        },
+        {
+          "name": "Get Pack",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/packs/{{packId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Cart & Checkout & Payment",
+      "item": [
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cart",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"photo\",\n  \"itemId\": \"{{photoId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cart",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.order && json.order._id) {",
+                  "    pm.collectionVariables.set('orderId', json.order._id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/checkout",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"billingInfo\": {\n    \"name\": \"Test User\",\n    \"email\": \"test@example.com\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkout/orders",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkout/orders/{{orderId}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Mock Complete Payment",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/payments/mock-complete?sessionId=test&orderId={{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "mock-complete"
+              ],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "test"
+                },
+                {
+                  "key": "orderId",
+                  "value": "{{orderId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check Payment Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/payments/status/{{orderId}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cart",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Search & Filters",
+      "item": [
+        {
+          "name": "Search All",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?q=توزر",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "توزر"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Suggestions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search/suggest?q=صح",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search",
+                "suggest"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "صح"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Dashboard",
+      "item": [
+        {
+          "name": "Get Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/stats",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Recent Activity",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/recent",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get User Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/user-stats",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Admin Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/admin-stats",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Downloads",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/downloads",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get My Photos",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/my-photos",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get My Content",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/my-content",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get User Packs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard/packs",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Track Download",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/dashboard/track-download",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itemType\": \"photo\",\n  \"itemId\": \"{{photoId}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Favorites & Playlists",
+      "item": [
+        {
+          "name": "Get Favorites",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/favorites",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Toggle Favorite",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/favorites/toggle",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"photo\",\n  \"itemId\": \"{{photoId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Playlists",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.playlists && json.data.playlists.length > 0) {",
+                  "    pm.collectionVariables.set('playlistId', json.data.playlists[0]._id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/playlists"
+          }
+        },
+        {
+          "name": "Get Playlist",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/playlists/{{playlistId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AI & Notifications & Inquiries",
+      "item": [
+        {
+          "name": "Analyze Photo (AI)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/ai/analyze",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"photoUrl\": \"https://example.com/photo.jpg\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Chat Photo (AI)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/ai/chat",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"photoUrl\": \"https://example.com/photo.jpg\",\n  \"message\": \"What is this?\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Submit Inquiry",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/inquiries",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"User\",\n  \"email\": \"user@test.com\",\n  \"message\": \"Help me\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Vapid Key",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notifications/vapid-key"
+          }
+        },
+        {
+          "name": "Get My Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.notifications && json.data.notifications.length > 0) {",
+                  "    pm.collectionVariables.set('notificationId', json.data.notifications[0]._id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notifications",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Subscribe Push Notifications",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/notifications/subscribe",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm...\",\n  \"keys\": {\n    \"p256dh\": \"...\",\n    \"auth\": \"...\"\n  }\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Admin",
+      "item": [
+        {
+          "name": "Content Management",
+          "item": [
+            {
+              "name": "Upload Content",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/content/upload",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": ""
+                    },
+                    {
+                      "key": "thumbnail",
+                      "type": "file",
+                      "src": ""
+                    },
+                    {
+                      "key": "title",
+                      "value": "Admin Video",
+                      "type": "text"
+                    },
+                    {
+                      "key": "type",
+                      "value": "video",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Admin description",
+                      "type": "text"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Content",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/content",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Update Content",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/content/{{contentId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Approve Content",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/content/{{contentId}}/approve",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Delete Content",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/content/{{contentId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Photo Management",
+          "item": [
+            {
+              "name": "Upload Photo",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/photos/upload",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "highRes",
+                      "type": "file",
+                      "src": ""
+                    },
+                    {
+                      "key": "title",
+                      "value": "Admin Photo",
+                      "type": "text"
+                    },
+                    {
+                      "key": "governorate",
+                      "value": "توزر",
+                      "type": "text"
+                    },
+                    {
+                      "key": "landscapeType",
+                      "value": "desert",
+                      "type": "text"
+                    },
+                    {
+                      "key": "priceTND",
+                      "value": "25",
+                      "type": "text"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Photos",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/photos",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Approve Photo",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/photos/{{photoId}}/approve",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Delete Photo",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/photos/{{photoId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User & Pack Management",
+          "item": [
+            {
+              "name": "List Users",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  var json = pm.response.json();",
+                      "  if (json.data && json.data.users && json.data.users.length > 0) {",
+                      "    pm.collectionVariables.set('userId', json.data.users[0]._id);",
+                      "  }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/users",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Update User Status",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/users/{{userId}}/status",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/users/{{userId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"admin\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/users/{{userId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Create Pack",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/packs",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Admin Pack\",\n  \"description\": \"Test\",\n  \"priceTND\": 50\n}"
+                }
+              }
+            },
+            {
+              "name": "List Admin Packs",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/packs",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Update Pack",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/packs/{{packId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Pack\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Pack",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/packs/{{packId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Playlists & Inquiries Management",
+          "item": [
+            {
+              "name": "Create Playlist",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/playlists",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Admin Playlist\",\n  \"contentIds\": [\n    \"{{contentId}}\"\n  ]\n}"
+                }
+              }
+            },
+            {
+              "name": "List Admin Playlists",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/playlists",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Delete Playlist",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/playlists/{{playlistId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "List Inquiries",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  var json = pm.response.json();",
+                      "  if (json.data && json.data.inquiries && json.data.inquiries.length > 0) {",
+                      "    pm.collectionVariables.set('inquiryId', json.data.inquiries[0]._id);",
+                      "  }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/inquiries",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Respond to Inquiry",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/inquiries/{{inquiryId}}/respond",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"response\": \"Hello, this is the admin response.\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Inquiry",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/inquiries/{{inquiryId}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
