@@ -152,10 +152,25 @@ cartSchema.methods.refreshPrices = async function () {
       const doc = await Model.findById(item.itemId);
       // Si le document existe encore dans la base
       if (doc) {
-        // Mise à jour du prix avec le prix en dinars tunisiens ou le prix par défaut
-        item.price = doc.priceTND || doc.price || 0;
         // Mise à jour du titre de l'élément
         item.title = doc.title;
+        
+        // Mise à jour du prix selon le type de licence
+        if (item.type === 'photo') {
+          if (item.licenseType === 'commercial') {
+            item.price = doc.priceCommercialTND || 0;
+          } else {
+            item.price = doc.pricePersonalTND || doc.priceTND || 0;
+          }
+        } else if (item.type === 'content') {
+          if (item.licenseType === 'commercial') {
+            item.price = doc.priceCommercial || 0;
+          } else {
+            item.price = doc.pricePersonal || doc.price || 0;
+          }
+        } else {
+          item.price = doc.priceTND || doc.price || 0;
+        }
       }
     }
   }

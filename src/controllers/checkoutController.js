@@ -147,9 +147,102 @@ const createOrder = asyncHandler(async (req, res, next) => {
   // Calcul du montant total du panier
   const total = cart.total;
 
-  // Vérification que le total est supérieur à zéro
-  if (total <= 0) {
-    return next(new AppError('Le total doit être supérieur à zéro !', 400));
+  // Si le total est égal à 0 (commande gratuite/playlist gratuite)
+  if (total === 0) {
+    // Créer la commande payée directement !
+    const order = await Order.create({
+      userId: req.user._id,
+      items: cart.items.map((item) => ({
+        type: item.type,
+        itemId: item.itemId,
+        price: item.price,
+        title: item.title,
+        licenseType: item.licenseType || 'personal',
+      })),
+      total: 0,
+      currency: 'TND',
+      paymentStatus: 'paid',
+      paymentProvider: 'mock',
+      paidAt: new Date(),
+      billingInfo,
+      notes,
+    });
+
+    // Créer des jetons de téléchargement pour chaque article
+    const rawTokens = {};
+    for (const item of order.items) {
+      // Créer un jeton valide 24 heures pour chaque article
+      const rawToken = order.createDownloadToken(item.type, item.itemId, 24);
+      rawTokens[`${item.type}_${item.itemId.toString()}`] = rawToken;
+
+      // Si l'article est un pack de type collection, créer des jetons pour chaque photo
+      if (item.type === 'pack') {
+        const pack = await Pack.findById(item.itemId);
+        if (pack && pack.type === 'collection' && pack.photoIds?.length > 0) {
+          for (const photoId of pack.photoIds) {
+            const photoToken = order.createDownloadToken('photo', photoId, 24);
+            rawTokens[`photo_${photoId.toString()}`] = photoToken;
+          }
+        }
+      }
+    }
+
+    // Sauvegarder les jetons bruts dans les métadonnées de la commande
+    order.metadata = { ...order.metadata, rawTokens };
+    await order.save();
+
+    // Vider le panier de l'utilisateur
+    await Cart.findOneAndUpdate(
+      { userId: order.userId },
+      { items: [], lastPriceUpdate: null }
+    );
+
+    // Mettre à jour les compteurs de ventes pour chaque article
+    for (const item of order.items) {
+      if (item.type === 'photo') {
+        await Photo.findByIdAndUpdate(item.itemId, { $inc: { purchases: 1 } });
+      } else if (item.type === 'pack') {
+        const pack = await Pack.findById(item.itemId);
+        if (pack) {
+          pack.purchases += 1;
+          await pack.save();
+        }
+      } else if (item.type === 'content') {
+        await Content.findByIdAndUpdate(item.itemId, { $inc: { downloads: 1 } });
+      }
+    }
+
+    // Enregistrer la commande payée dans le journal d'audit
+    await AuditLog.log({
+      userId: order.userId,
+      action: 'ORDER_PAID',
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      resource: `Order:${order._id}`,
+      result: 'success',
+    });
+
+    return res.status(201).json({
+      status: 'success',
+      message: 'Commande gratuite créée avec succès !',
+      data: {
+        order: {
+          id: order._id,
+          total: order.total,
+          currency: order.currency,
+          paymentStatus: order.paymentStatus,
+        },
+        payment: {
+          url: null,
+          sessionId: null,
+        },
+      },
+    });
+  }
+
+  // Vérification que le total est supérieur à zéro (pour les commandes payantes)
+  if (total < 0) {
+    return next(new AppError('Le total doit être positif !', 400));
   }
 
   // Création de la commande dans la base de données

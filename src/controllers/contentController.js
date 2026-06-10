@@ -58,7 +58,7 @@ const getContents = asyncHandler(async (req, res, _next) => {
 
   // Recherche des contenus avec sélection de champs, jointure, tri et pagination
   const contents = await Content.find(query)
-    .select('title type region themes duration thumbnailFileId fileFileId rights price visibility createdAt metadata authors createdBy')
+    .select('title type region themes duration thumbnailFileId fileFileId rights price pricePersonal priceCommercial visibility createdAt metadata authors createdBy')
     .populate('createdBy', 'name')
     .sort(sort)
     .skip((page - 1) * limit)
