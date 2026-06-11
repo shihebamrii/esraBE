@@ -2,10 +2,11 @@
 const { Photo, Pack, AuditLog } = require('../models');
 // Importation des fonctions de stockage pour gérer les fichiers
 const { uploadToGridFS, getFileInfo, getDownloadStream } = require('../services/storageService');
+const path = require('path');
 // Importation des fonctions de traitement d'images
 const { createLowResVersion, addTiledWatermark, getImageInfo } = require('../services/imageProcessor');
 // Importation de la fonction de traitement vidéo pour la compatibilité des codecs
-const { ensureCompatibleCodec } = require('../services/videoProcessor');
+const { ensureCompatibleCodec, createThumbnailFromVideo } = require('../services/videoProcessor');
 // Importation de la classe d'erreur personnalisée
 const AppError = require('../utils/AppError');
 // Importation du gestionnaire d'erreurs asynchrones
@@ -388,17 +389,20 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   let finalHighResBuffer = highResFile.buffer;
   // Initialiser les métadonnées vidéo
   let videoMetadata = {};
+  let highResFileMimetype = highResFile.mimetype;
+  let highResFileOriginalname = highResFile.originalname;
 
   // Si c'est une vidéo, transcoder si nécessaire
   if (isVideo) {
     const processed = await ensureCompatibleCodec(highResFile.buffer, highResFile.originalname);
     finalHighResBuffer = processed.buffer;
     videoMetadata = processed.info;
-  }
 
-  // Pour les vidéos, exiger une miniature séparée
-  if (isVideo && !lowResFile) {
-    return next(new AppError('Pour la vidéo, veuillez télécharger une miniature (Thumbnail) !', 400));
+    if (processed.transcoded) {
+      highResFileMimetype = 'video/mp4';
+      const parsedPath = path.parse(highResFile.originalname);
+      highResFileOriginalname = `${parsedPath.name}.mp4`;
+    }
   }
 
   // Récupérer les informations du fichier haute résolution
@@ -410,8 +414,8 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   // Téléverser le fichier haute résolution vers GridFS
   const highResFileId = await uploadToGridFS(
     finalHighResBuffer,
-    highResFile.originalname,
-    highResFile.mimetype,
+    highResFileOriginalname,
+    highResFileMimetype,
     {
       uploadedBy: req.user._id,
       type: isVideo ? 'photo-video' : 'photo-highres',
@@ -420,24 +424,41 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     }
   );
 
-  // Initialiser les variables pour la version basse résolution
+  // Initialiser les variables pour la version basse résolution (miniature)
   let lowResBuffer;
   let lowResInfo;
 
-  // Si un fichier basse résolution est fourni, l'utiliser directement
-  if (lowResFile) {
-    lowResBuffer = lowResFile.buffer;
-    lowResInfo = await getImageInfo(lowResBuffer);
+  if (isVideo) {
+    if (lowResFile) {
+      lowResBuffer = lowResFile.buffer;
+      lowResInfo = await getImageInfo(lowResBuffer);
+    } else {
+      // Si aucune miniature n'est fournie, extraire une image de la vidéo à la 1ère seconde
+      try {
+        console.log(`Extracting thumbnail from video ${highResFileOriginalname}...`);
+        lowResBuffer = await createThumbnailFromVideo(finalHighResBuffer, 1);
+        lowResInfo = { width: 640, height: 360 }; // Taille par défaut définie dans la capture
+      } catch (err) {
+        console.error("Failed to extract thumbnail from video:", err);
+        return next(new AppError("Échec de la génération automatique de la miniature vidéo", 500));
+      }
+    }
   } else {
-    // Sinon, créer une version basse résolution automatiquement
-    const lowResResult = await createLowResVersion(highResFile.buffer, {
-      maxWidth: 800,
-      maxHeight: 600,
-      quality: 70,
-      format: 'jpeg',
-    });
-    lowResBuffer = lowResResult.buffer;
-    lowResInfo = lowResResult.info;
+    // Si c'est une photo et qu'une version basse résolution est fournie, l'utiliser directement
+    if (lowResFile) {
+      lowResBuffer = lowResFile.buffer;
+      lowResInfo = await getImageInfo(lowResBuffer);
+    } else {
+      // Sinon, créer une version basse résolution automatiquement
+      const lowResResult = await createLowResVersion(highResFile.buffer, {
+        maxWidth: 800,
+        maxHeight: 600,
+        quality: 70,
+        format: 'jpeg',
+      });
+      lowResBuffer = lowResResult.buffer;
+      lowResInfo = lowResResult.info;
+    }
   }
 
   // Définir le texte du filigrane
@@ -504,15 +525,15 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     // Stocker les informations techniques des fichiers
     fileInfo: {
       highRes: {
-        filename: highResFile.originalname,
-        contentType: highResFile.mimetype,
+        filename: highResFileOriginalname,
+        contentType: highResFileMimetype,
         size: finalHighResBuffer.length,
         width: highResInfo.width,
         height: highResInfo.height,
         duration: videoMetadata.duration,
         codec: videoMetadata.codec
       },
-      lowRes: { filename: `lowres_${highResFile.originalname}`, contentType: 'image/jpeg', size: watermarkedBuffer.length, width: lowResInfo.width, height: lowResInfo.height },
+      lowRes: { filename: `lowres_${highResFileOriginalname}`, contentType: 'image/jpeg', size: watermarkedBuffer.length, width: lowResInfo.width, height: lowResInfo.height },
     },
   });
 

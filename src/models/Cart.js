@@ -1,56 +1,56 @@
-// Importation de la bibliothèque mongoose pour gérer la base de données MongoDB
+// Import the mongoose library to interact with MongoDB database
 const mongoose = require('mongoose');
 
-// Définition du schéma pour un élément individuel dans le panier
+// Define the schema/structure for a single item inside the shopping cart
 const cartItemSchema = new mongoose.Schema(
   {
-    // Type de l'élément ajouté au panier (photo, pack ou contenu)
+    // The type of item added to the cart: must be either 'photo', 'pack', or 'content'
     type: {
       type: String,
       enum: ['photo', 'pack', 'content'],
       required: true,
     },
 
-    // Identifiant unique de l'élément dans sa collection respective
+    // The unique database identifier of the item in its respective database collection
     itemId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
 
-    // Prix de l'élément au moment de l'ajout au panier
+    // The price of the item at the exact moment it was added to the cart (cannot be negative)
     price: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Titre ou nom de l'élément
+    // The title or name of the item
     title: String,
 
-    // URL de l'image miniature de l'élément
+    // The URL path to the thumbnail image of the item
     thumbnail: String,
 
-    // Type de licence sélectionné (personnel ou commercial)
+    // The type of license chosen for this item (personal use or commercial use)
     licenseType: {
       type: String,
       enum: ['personal', 'commercial'],
       default: 'personal',
     },
 
-    // Date et heure d'ajout de l'élément au panier
+    // The date and time when this specific item was added to the cart (defaults to current time)
     addedAt: {
       type: Date,
       default: Date.now,
     },
   },
-  // Activation de la génération automatique d'un identifiant unique pour chaque élément
+  // Automatically generate a unique _id for each individual item inside the cart list
   { _id: true }
 );
 
-// Définition du schéma principal du panier pour chaque utilisateur
+// Define the main cart schema for each user, containing the list of items
 const cartSchema = new mongoose.Schema(
   {
-    // Identifiant de l'utilisateur propriétaire du panier, référence vers User
+    // The identifier of the user who owns this cart, linking directly to the User model
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -58,82 +58,82 @@ const cartSchema = new mongoose.Schema(
       unique: true,
     },
 
-    // Liste des éléments présents dans le panier
+    // An array holding the list of items currently inside the shopping cart
     items: [cartItemSchema],
 
-    // Date de la dernière mise à jour des prix des éléments
+    // The date and time when the prices of the items in the cart were last updated/refreshed
     lastPriceUpdate: Date,
   },
   {
-    // Ajout automatique des champs createdAt et updatedAt
+    // Automatically add 'createdAt' and 'updatedAt' timestamp fields to the document
     timestamps: true,
-    // Inclusion des propriétés virtuelles lors de la conversion en JSON
+    // Ensure virtual properties (like total and itemCount) are included when converting to JSON
     toJSON: { virtuals: true },
-    // Inclusion des propriétés virtuelles lors de la conversion en objet
+    // Ensure virtual properties are included when converting to standard JavaScript objects
     toObject: { virtuals: true },
   }
 );
 
-// Propriété virtuelle pour calculer le montant total du panier
+// Create a virtual property to calculate the total price of all items in the cart
 cartSchema.virtual('total').get(function () {
-  // Si le panier est vide, le total est 0
+  // If there are no items, the total price is 0
   if (!this.items || this.items.length === 0) return 0;
-  // Addition de tous les prix des éléments du panier
+  // Sum up the prices of all items in the items array (using 0 if price is undefined)
   return this.items.reduce((sum, item) => sum + (item.price || 0), 0);
 });
 
-// Propriété virtuelle pour obtenir le nombre d'éléments dans le panier
+// Create a virtual property to get the count of items in the cart
 cartSchema.virtual('itemCount').get(function () {
-  // Retourne la taille du tableau d'éléments, ou 0 s'il est vide
+  // Return the length of the items array, or 0 if the array does not exist
   return this.items ? this.items.length : 0;
 });
 
-// Méthode d'instance pour ajouter un élément au panier
+// Instance method on the cart document to add a new item
 cartSchema.methods.addItem = async function (itemData) {
-  // Vérification si l'élément existe déjà dans le panier (même type et même identifiant)
+  // Check if an item with the exact same ID and type is already present in the cart
   const exists = this.items.some(
     (item) => item.type === itemData.type && item.itemId.toString() === itemData.itemId.toString()
   );
 
-  // Si l'élément est déjà présent, on lance une erreur
+  // If the item is already in the cart, throw a 400 Bad Request error
   if (exists) {
     const AppError = require('../utils/AppError');
     throw new AppError("L'article existe déjà dans le panier !", 400);
   }
 
-  // Ajout de l'élément dans le tableau des éléments du panier
+  // Push the new item data into the items array
   this.items.push(itemData);
-  // Sauvegarde du panier dans la base de données
+  // Save the updated cart document to the database
   await this.save();
 };
 
-// Méthode d'instance pour retirer un élément du panier
+// Instance method on the cart document to remove a specific item using its unique cart item ID
 cartSchema.methods.removeItem = async function (itemId) {
-  // Filtrage du tableau pour enlever l'élément avec l'identifiant donné
+  // Keep only the items that do not match the given item ID
   this.items = this.items.filter((item) => item._id.toString() !== itemId);
-  // Sauvegarde du panier dans la base de données
+  // Save the updated cart document to the database
   await this.save();
 };
 
-// Méthode d'instance pour vider complètement le panier
+// Instance method on the cart document to empty all items
 cartSchema.methods.clear = async function () {
-  // Réinitialisation de la liste des éléments à un tableau vide
+  // Reset the items array to empty
   this.items = [];
-  // Sauvegarde du panier dans la base de données
+  // Save the updated cart document to the database
   await this.save();
 };
 
-// Méthode d'instance pour rafraîchir les prix des éléments depuis la base de données
+// Instance method to update and refresh the prices and titles of all items in the cart from the database
 cartSchema.methods.refreshPrices = async function () {
-  // Importation des modèles nécessaires pour récupérer les données à jour
+  // Dynamically import the database models to query current data
   const Photo = require('./Photo');
   const Pack = require('./Pack');
   const Content = require('./Content');
 
-  // Parcours de chaque élément du panier
+  // Loop through each item in the cart to fetch its latest price and details
   for (const item of this.items) {
     let Model;
-    // Sélection du modèle correspondant au type de l'élément
+    // Determine which database collection/model to query based on the item type
     switch (item.type) {
       case 'photo':
         Model = Photo;
@@ -146,16 +146,16 @@ cartSchema.methods.refreshPrices = async function () {
         break;
     }
 
-    // Si un modèle correspondant a été trouvé
+    // If a valid model was found for the item type
     if (Model) {
-      // Recherche de l'élément dans la base de données par son identifiant
+      // Query the database for the item document using its ID
       const doc = await Model.findById(item.itemId);
-      // Si le document existe encore dans la base
+      // If the item still exists in the database
       if (doc) {
-        // Mise à jour du titre de l'élément
+        // Refresh the title of the item
         item.title = doc.title;
         
-        // Mise à jour du prix selon le type de licence
+        // Refresh the price based on the item type and selected license type
         if (item.type === 'photo') {
           if (item.licenseType === 'commercial') {
             item.price = doc.priceCommercialTND || 0;
@@ -175,29 +175,28 @@ cartSchema.methods.refreshPrices = async function () {
     }
   }
 
-  // Enregistrement de la date actuelle comme dernière mise à jour des prix
+  // Set the last price update timestamp to the current date and time
   this.lastPriceUpdate = new Date();
-  // Sauvegarde du panier dans la base de données
+  // Save all price updates to the database
   await this.save();
 };
 
-// Méthode statique pour récupérer le panier d'un utilisateur ou en créer un nouveau
+// Static method on the Cart model to find a user's cart or create a new one if it doesn't exist
 cartSchema.statics.getOrCreate = async function (userId) {
-  // Recherche du panier de l'utilisateur dans la base de données
+  // Find a cart document belonging to the given user ID
   let cart = await this.findOne({ userId });
 
-  // Si aucun panier n'existe pour cet utilisateur
+  // If no cart is found for the user, create a new, empty cart
   if (!cart) {
-    // Création d'un nouveau panier vide pour cet utilisateur
     cart = await this.create({ userId, items: [] });
   }
 
-  // Retour du panier trouvé ou nouvellement créé
+  // Return the found or newly created cart document
   return cart;
 };
 
-// Création du modèle Cart à partir du schéma défini
+// Create the 'Cart' model using the defined schema
 const Cart = mongoose.model('Cart', cartSchema);
 
-// Exportation du modèle pour l'utiliser dans d'autres fichiers
+// Export the Cart model for use in other files
 module.exports = Cart;

@@ -3,6 +3,7 @@ const { Content, AuditLog } = require('../models');
 
 // Importation des fonctions de stockage pour GridFS
 const { uploadToGridFS, deleteFromGridFS } = require('../services/storageService');
+const path = require('path');
 
 // Importation de la fonction de création de miniature pour les images
 const { createThumbnail } = require('../services/imageProcessor');
@@ -41,18 +42,26 @@ const uploadContent = asyncHandler(async (req, res, next) => {
   let finalVideoBuffer = mainFile.buffer;
   // Initialisation des métadonnées vidéo vides
   let videoMetadata = {};
+  let mainFileMimetype = mainFile.mimetype;
+  let mainFileOriginalname = mainFile.originalname;
 
   // Vérification si le fichier est une vidéo
   if (mainFile.mimetype.startsWith('video/')) {
     // Choix du type de contenu : reel ou vidéo classique
     contentType = mainFile.mimetype.includes('reel') ? 'reel' : 'video';
     
-    // Encodage de la vidéo si son codec est HEVC
+    // Encodage de la vidéo si son codec est HEVC ou conteneur incompatible
     const processed = await ensureCompatibleCodec(mainFile.buffer, mainFile.originalname);
     // Sauvegarde du buffer traité
     finalVideoBuffer = processed.buffer;
     // Sauvegarde des métadonnées de la vidéo
     videoMetadata = processed.info;
+
+    if (processed.transcoded) {
+      mainFileMimetype = 'video/mp4';
+      const parsedPath = path.parse(mainFile.originalname);
+      mainFileOriginalname = `${parsedPath.name}.mp4`;
+    }
   } else if (mainFile.mimetype.startsWith('audio/')) {
     // Choix du type de contenu si c'est un fichier audio
     contentType = 'audio';
@@ -64,8 +73,8 @@ const uploadContent = asyncHandler(async (req, res, next) => {
   // Téléchargement du fichier principal dans le stockage GridFS
   const fileFileId = await uploadToGridFS(
     finalVideoBuffer,
-    mainFile.originalname,
-    mainFile.mimetype,
+    mainFileOriginalname,
+    mainFileMimetype,
     {
       uploadedBy: req.user._id,
       type: 'content',
@@ -140,8 +149,8 @@ const uploadContent = asyncHandler(async (req, res, next) => {
     publishedAt: visibility === 'public' ? new Date() : undefined,
     metadata: safeParseJSON(metadata, {}),
     fileInfo: {
-      filename: mainFile.originalname,
-      contentType: mainFile.mimetype,
+      filename: mainFileOriginalname,
+      contentType: mainFileMimetype,
       size: finalVideoBuffer.length,
       duration: videoMetadata.duration || duration,
       width: videoMetadata.width,
@@ -283,11 +292,19 @@ const updateContent = asyncHandler(async (req, res, next) => {
   if (mainFile) {
     let finalVideoBuffer = mainFile.buffer;
     let videoMetadata = {};
+    let mainFileMimetype = mainFile.mimetype;
+    let mainFileOriginalname = mainFile.originalname;
 
     if (mainFile.mimetype.startsWith('video/')) {
       const processed = await ensureCompatibleCodec(mainFile.buffer, mainFile.originalname);
       finalVideoBuffer = processed.buffer;
       videoMetadata = processed.info;
+
+      if (processed.transcoded) {
+        mainFileMimetype = 'video/mp4';
+        const parsedPath = path.parse(mainFile.originalname);
+        mainFileOriginalname = `${parsedPath.name}.mp4`;
+      }
     }
 
     // Supprimer l'ancien fichier de GridFS s'il existe
@@ -302,8 +319,8 @@ const updateContent = asyncHandler(async (req, res, next) => {
     // Télécharger le nouveau fichier dans GridFS
     const fileFileId = await uploadToGridFS(
       finalVideoBuffer,
-      mainFile.originalname,
-      mainFile.mimetype,
+      mainFileOriginalname,
+      mainFileMimetype,
       {
         uploadedBy: req.user._id,
         type: 'content',
@@ -313,8 +330,8 @@ const updateContent = asyncHandler(async (req, res, next) => {
 
     updates.fileFileId = fileFileId;
     updates.fileInfo = {
-      filename: mainFile.originalname,
-      contentType: mainFile.mimetype,
+      filename: mainFileOriginalname,
+      contentType: mainFileMimetype,
       size: finalVideoBuffer.length,
       duration: videoMetadata.duration || parseFloat(req.body.duration) || content.duration,
       width: videoMetadata.width,

@@ -1,17 +1,17 @@
-// Importation du modèle Content depuis le dossier des modèles
+// Import the Content database model from the models folder so we can query database content
 const { Content } = require('../models');
 
-// Importation du wrapper asyncHandler pour gérer les erreurs dans les fonctions asynchrones
+// Import the asyncHandler wrapper to automatically handle any errors in async functions and send them to Express error handlers
 const asyncHandler = require('../utils/asyncHandler');
 
-// Importation de la classe d'erreur personnalisée AppError
+// Import the custom AppError class to create clean, structured errors with specific HTTP status codes
 const AppError = require('../utils/AppError');
 
-// Déclaration de la fonction pour obtenir la liste des contenus avec des filtres
+// Define the controller function to fetch a list of content items based on search filters and pagination
 const getContents = asyncHandler(async (req, res, _next) => {
-  // Construction de l'URL de base à partir du protocole et de l'hôte
+  // Construct the base URL of the request using the protocol (http/https) and the server host
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  // Extraction des paramètres de filtrage et de pagination depuis la requête
+  // Extract query filters and pagination settings from the request URL, with default page=1 and limit=20
   const {
     page = 1,
     limit = 20,
@@ -25,38 +25,41 @@ const getContents = asyncHandler(async (req, res, _next) => {
     sort = '-createdAt',
   } = req.query;
 
-  // Initialisation de l'objet de filtrage
+  // Initialize an empty query object that will hold all our database filter conditions
   const query = {};
-  // Filtrage par visibilité (public par défaut si non spécifié)
+  // If visibility is explicitly requested and is not set to 'all', filter by that visibility status
   if (visibility && visibility !== 'all') {
     query.visibility = visibility;
+  // If no visibility is specified in the request, default to only returning public content
   } else if (!visibility) {
     query.visibility = 'public';
   }
 
-  // Filtrage par type de contenu (support de plusieurs types séparés par des virgules)
+  // If a content type (like photo, pack, video) filter is requested
   if (type) {
+    // If multiple types are specified separated by commas, look for any of these values
     if (type.includes(',')) {
       query.type = { $in: type.split(',') };
+    // If it is just a single type, query it directly
     } else {
       query.type = type;
     }
   }
-  // Filtrage par région si spécifié
+  // If a region filter is provided, add it to our search query
   if (region) query.region = region;
-  // Filtrage par thème si spécifié
+  // If a theme filter is provided, check if it matches any of the content's themes
   if (theme) query.themes = theme;
-  // Filtrage par langue si spécifié
+  // If a language filter is provided, add it to our search query
   if (language) query.language = language;
-  // Filtrage par droits si spécifié
+  // If a rights (license) filter is provided, add it to our search query
   if (rights) query.rights = rights;
-  // Filtrage pour les contenus gratuits uniquement
+  // If freeOnly is set to true, only query for items where the price is 0
   if (freeOnly === 'true') query.price = 0;
 
-  // Comptage du nombre total de résultats correspondant aux filtres
+  // Query MongoDB to count the total number of documents matching our filters (useful for client-side pagination)
   const total = await Content.countDocuments(query);
 
-  // Recherche des contenus avec sélection de champs, jointure, tri et pagination
+  // Retrieve the filtered list of contents, selecting specific fields, populating the creator's name, sorting, and paginating
   const contents = await Content.find(query)
     .select('title type region themes duration thumbnailFileId fileFileId rights price pricePersonal priceCommercial visibility createdAt metadata authors createdBy')
     .populate('createdBy', 'name')
@@ -64,18 +67,19 @@ const getContents = asyncHandler(async (req, res, _next) => {
     .skip((page - 1) * limit)
     .limit(parseInt(limit, 10));
 
-  // Ajout des URLs de miniature et de contenu à chaque résultat
+  // Iterate over each content item to construct absolute file URLs for the thumbnail and main media files
   const contentsWithUrls = contents.map((content) => {
-    // Conversion du document Mongoose en objet JavaScript simple
+    // Convert the Mongoose document to a plain JavaScript object so we can add new properties
     const obj = content.toObject();
-    // Ajout de l'URL de la miniature si elle existe
+    // If a thumbnail file ID exists, build the media API URL for the thumbnail
     obj.thumbnailUrl = content.thumbnailFileId ? `/api/media/${content.thumbnailFileId}` : null;
-    // Ajout de l'URL du contenu
+    // Build the media API URL for retrieving the main content file
     obj.contentUrl = `/api/media/${content.fileFileId}`;
+    // Return the updated object
     return obj;
   });
 
-  // Envoi de la réponse avec les contenus et les informations de pagination
+  // Send a successful 200 HTTP response with the results, count, and pagination info back to the client
   res.status(200).json({
     status: 'success',
     results: contents.length,
@@ -86,29 +90,29 @@ const getContents = asyncHandler(async (req, res, _next) => {
   });
 });
 
-// Déclaration de la fonction pour obtenir les détails d'un contenu spécifique
+// Define the controller function to fetch details of a single content item by its database ID
 const getContent = asyncHandler(async (req, res, next) => {
-  // Récupération de l'identifiant du contenu depuis les paramètres de la route
+  // Extract the content ID parameter from the request route URL
   const { id } = req.params;
-  // Construction de l'URL de base
+  // Construct the base URL of the request
   const baseUrl = `${req.protocol}://${req.get('host')}`;
 
-  // Recherche du contenu par identifiant avec jointure sur le créateur
+  // Find the content document in the database by its ID and populate the name of the user who created it
   const content = await Content.findById(id)
     .populate('createdBy', 'name');
 
-  // Si le contenu n'existe pas, on renvoie une erreur 404
+  // If no content was found matching the given ID, send a 404 Not Found error to the error handler middleware
   if (!content) {
     return next(new AppError('Contenu introuvable !', 404));
   }
 
-  // Vérification des droits d'accès si le contenu est privé
+  // If the content is marked as private, ensure the user has appropriate permissions to view it
   if (content.visibility === 'private') {
-    // Si l'utilisateur n'est pas connecté, on refuse l'accès
+    // If the requester is not logged in, deny access with a 403 Forbidden error
     if (!req.user) {
       return next(new AppError('Le contenu est privé !', 403));
     }
-    // Seul l'admin ou le créateur peut accéder au contenu privé
+    // If the logged-in user is not an administrator AND is not the original creator, deny access
     if (
       req.user.role !== 'admin' &&
       content.createdBy._id.toString() !== req.user._id.toString()
@@ -117,36 +121,36 @@ const getContent = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Conversion du document en objet et ajout des URLs
+  // Convert the Mongoose document to a plain JavaScript object
   const obj = content.toObject();
-  // Ajout de l'URL de la miniature si elle existe
+  // Build the media API URL for the thumbnail image if it exists
   obj.thumbnailUrl = content.thumbnailFileId ? `/api/media/${content.thumbnailFileId}` : null;
-  // Ajout de l'URL du contenu
+  // Build the media API URL for downloading or playing the main content file
   obj.contentUrl = `/api/media/${content.fileFileId}`;
 
-  // Envoi de la réponse avec les détails du contenu
+  // Send a successful 200 HTTP response containing the single content details
   res.status(200).json({
     status: 'success',
     data: { content: obj },
   });
 });
 
-// Déclaration de la fonction pour obtenir les contenus similaires
+// Define the controller function to fetch related content items based on the current item's characteristics
 const getRelatedContent = asyncHandler(async (req, res, next) => {
-  // Récupération de l'identifiant du contenu depuis les paramètres
+  // Extract the current content ID parameter from the request route URL
   const { id } = req.params;
-  // Extraction de la limite de résultats depuis la requête
+  // Extract the search result limit from query parameters, defaulting to 6
   const { limit = 6 } = req.query;
 
-  // Recherche du contenu de référence
+  // Look up the reference content item in the database by its ID
   const content = await Content.findById(id);
 
-  // Si le contenu n'existe pas, on renvoie une erreur 404
+  // If the reference content is not found, return a 404 Not Found error
   if (!content) {
     return next(new AppError('Contenu introuvable !', 404));
   }
 
-  // Recherche de contenus similaires par type, région ou thèmes communs
+  // Find up to 'limit' other public contents that share the same type, region, or themes, excluding the current content
   const related = await Content.find({
     _id: { $ne: id },
     visibility: 'public',
@@ -159,14 +163,14 @@ const getRelatedContent = asyncHandler(async (req, res, next) => {
     .select('title type region thumbnailFileId duration rights price')
     .limit(parseInt(limit, 10));
 
-  // Envoi de la réponse avec les contenus similaires
+  // Send a successful 200 HTTP response with the related contents
   res.status(200).json({
     status: 'success',
     data: { related },
   });
 });
 
-// Exportation des fonctions de gestion des contenus publics pour utilisation dans les routes
+// Export the controller functions so they can be imported and bound to API routes in other files
 module.exports = {
   getContents,
   getContent,

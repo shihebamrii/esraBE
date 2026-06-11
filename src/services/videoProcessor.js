@@ -10,8 +10,7 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // Configuration du chemin vers l'exécutable FFprobe
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
-// Importation des classes Readable et PassThrough depuis le module stream de Node.js
-const { Readable, PassThrough } = require('stream');
+
 // Importation du module path pour la gestion des chemins de fichiers
 const path = require('path');
 // Importation du module os pour accéder au répertoire temporaire du système
@@ -64,16 +63,22 @@ const ensureCompatibleCodec = async (buffer, originalName) => {
     // Récupération des métadonnées de la vidéo
     const metadata = await getVideoMetadata(buffer);
     
-    // Vérification si le codec n'est pas HEVC (pas besoin de conversion)
-    if (metadata.codec !== 'hevc' && metadata.codec !== 'h265') {
+    // Vérification si le codec et le conteneur sont compatibles avec le navigateur
+    const ext = path.extname(originalName || '').toLowerCase();
+    const codec = (metadata.codec || '').toLowerCase();
+    
+    const isUnsupportedCodec = codec === 'hevc' || codec === 'h265' || codec === 'h.265';
+    const isUnsupportedContainer = ['.mov', '.avi', '.mkv', '.wmv', '.flv'].includes(ext);
+
+    if (!isUnsupportedCodec && !isUnsupportedContainer) {
        // Affichage dans la console que la conversion n'est pas nécessaire
-       console.log(`Video ${originalName} uses ${metadata.codec}, no transcoding needed.`);
+       console.log(`Video ${originalName} uses compatible codec (${codec}) and container (${ext}), no transcoding needed.`);
        // Retour du tampon original sans modification
        return { buffer, info: metadata, transcoded: false };
     }
 
     // Affichage dans la console que la conversion est en cours
-    console.log(`Transcoding ${originalName} from HEVC to H.264 for compatibility...`);
+    console.log(`Transcoding ${originalName} from ${codec.toUpperCase()} (${ext}) to H.264 for compatibility...`);
 
     // Création et retour d'une promesse pour gérer le transcodage
     return new Promise((resolve, reject) => {
@@ -147,41 +152,49 @@ const ensureCompatibleCodec = async (buffer, originalName) => {
 
 // Déclaration de la fonction pour créer une miniature à partir d'un tampon vidéo
 const createThumbnailFromVideo = (buffer, timestamp = 1) => {
-  // Création et retour d'une promesse pour gérer l'opération asynchrone
   return new Promise((resolve, reject) => {
-    // Création d'un flux de lecture à partir du tampon vidéo
-    const inputStream = Readable.from(buffer);
-    // Création d'un flux PassThrough pour la sortie
-    const outputStream = new PassThrough();
-    // Initialisation d'un tableau pour stocker les morceaux de données
-    const chunks = [];
+    const uniqueId = crypto.randomBytes(8).toString('hex');
+    const tempInput = path.join(os.tmpdir(), `input_${uniqueId}.mp4`);
+    const tempOutputName = `thumb_${uniqueId}.jpg`;
+    const tempOutputDir = os.tmpdir();
+    const tempOutputPath = path.join(tempOutputDir, tempOutputName);
 
-    // Écoute de chaque morceau de données reçu et ajout dans le tableau
-    outputStream.on('data', (chunk) => chunks.push(chunk));
-    // Résolution de la promesse avec la concaténation de tous les morceaux à la fin du flux
-    outputStream.on('end', () => resolve(Buffer.concat(chunks)));
-    // Rejet de la promesse en cas d'erreur sur le flux de sortie
-    outputStream.on('error', reject);
+    // Écrire le buffer vidéo d'entrée dans un fichier temporaire
+    fs.writeFileSync(tempInput, buffer);
 
-    // Capture d'une image de la vidéo au moment spécifié
-    ffmpeg(inputStream)
+    ffmpeg(tempInput)
       .screenshots({
-        // Liste des moments où capturer les images
         timestamps: [timestamp],
-        // Dossier temporaire requis par la méthode screenshots
-        folder: '/tmp',
-        // Nom du fichier de la miniature
-        filename: 'thumbnail.jpg'
+        folder: tempOutputDir,
+        filename: tempOutputName,
+        size: '640x360'
       })
-      // Rejet de la promesse en cas d'erreur FFmpeg
-      .on('error', reject)
-      // Redirection du flux de sortie
-      .pipe(outputStream);
+      .on('end', () => {
+        try {
+          if (fs.existsSync(tempOutputPath)) {
+            const thumbnailBuffer = fs.readFileSync(tempOutputPath);
+            // Suppression des fichiers temporaires
+            if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+            if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+            resolve(thumbnailBuffer);
+          } else {
+            reject(new AppError('Fichier de miniature non généré', 500));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      })
+      .on('error', (err) => {
+        if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+        if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+        reject(err);
+      });
   });
 };
 
 // Exportation des fonctions de traitement vidéo
 module.exports = {
   getVideoMetadata,
-  ensureCompatibleCodec
+  ensureCompatibleCodec,
+  createThumbnailFromVideo
 };
