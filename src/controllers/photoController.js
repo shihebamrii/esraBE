@@ -41,8 +41,8 @@ const getPhotos = asyncHandler(async (req, res, _next) => {
     query.approvalStatus = 'approved';
   }
 
-  // Ajouter le filtre par gouvernorat si spécifié
-  if (governorate) query.governorate = governorate;
+  // Ajouter le filtre par gouvernorat si spécifié (insensible à la casse)
+  if (governorate) query.governorate = { $regex: new RegExp('^' + governorate + '$', 'i') };
   // Ajouter le filtre par type de paysage si spécifié
   if (landscapeType) query.landscapeType = landscapeType;
   // Ajouter le filtre par créateur si un identifiant utilisateur est fourni

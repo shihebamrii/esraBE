@@ -14,8 +14,8 @@ const getAllPlaylists = asyncHandler(async (req, res, next) => {
   const query = { isActive: true };
   // Ajouter le filtre par type si spécifié
   if (type) query.type = type;
-  // Ajouter le filtre par région si spécifié
-  if (region) query.region = region;
+  // Ajouter le filtre par région si spécifié (insensible à la casse)
+  if (region) query.region = { $regex: new RegExp('^' + region + '$', 'i') };
   // Ajouter le filtre par thème si spécifié
   if (theme) query.themes = theme;
   // Ajouter le filtre par section si spécifié

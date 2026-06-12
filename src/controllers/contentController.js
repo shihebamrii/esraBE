@@ -45,8 +45,8 @@ const getContents = asyncHandler(async (req, res, _next) => {
       query.type = type;
     }
   }
-  // If a region filter is provided, add it to our search query
-  if (region) query.region = region;
+  // If a region filter is provided, add it to our search query (case-insensitive)
+  if (region) query.region = { $regex: new RegExp('^' + region + '$', 'i') };
   // If a theme filter is provided, check if it matches any of the content's themes
   if (theme) query.themes = theme;
   // If a language filter is provided, add it to our search query

@@ -3,9 +3,13 @@ const { Photo, AuditLog } = require('../models');
 
 // Importation des fonctions de téléchargement et de suppression GridFS
 const { uploadToGridFS, deleteFromGridFS } = require('../services/storageService');
+const path = require('path');
 
 // Importation des fonctions de traitement d'image : basse résolution, filigrane et informations d'image
 const { createLowResVersion, addTiledWatermark, getImageInfo } = require('../services/imageProcessor');
+
+// Importation des fonctions de traitement vidéo pour la compatibilité des codecs
+const { ensureCompatibleCodec, createThumbnailFromVideo } = require('../services/videoProcessor');
 
 // Importation de la classe d'erreur personnalisée AppError
 const AppError = require('../utils/AppError');
@@ -34,25 +38,41 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   // Détection si le fichier téléchargé est une vidéo
   const isVideo = highResFile.mimetype.startsWith('video/');
 
-  // Une vidéo nécessite obligatoirement le téléchargement d'une miniature
-  if (isVideo && !lowResFile) {
-    return next(new AppError('Pour la vidéo, veuillez télécharger une miniature (Thumbnail) !', 400));
+  // Initialisation du buffer final pour le fichier haute résolution
+  let finalHighResBuffer = highResFile.buffer;
+  // Initialisation des métadonnées vidéo
+  let videoMetadata = {};
+  let highResFileMimetype = highResFile.mimetype;
+  let highResFileOriginalname = highResFile.originalname;
+
+  // Si c'est une vidéo, transcoder si nécessaire
+  if (isVideo) {
+    const processed = await ensureCompatibleCodec(highResFile.buffer, highResFile.originalname);
+    finalHighResBuffer = processed.buffer;
+    videoMetadata = processed.info;
+
+    if (processed.transcoded) {
+      highResFileMimetype = 'video/mp4';
+      const parsedPath = path.parse(highResFile.originalname);
+      highResFileOriginalname = `${parsedPath.name}.mp4`;
+    }
   }
 
-  // Récupération des informations géométriques si c'est une image
-  let highResInfo = {};
+  // Récupération des informations géométriques si c'est une image ou une vidéo
+  let highResInfo = isVideo ? videoMetadata : {};
   if (!isVideo) {
     highResInfo = await getImageInfo(highResFile.buffer);
   }
 
   // Téléchargement du fichier haute résolution original dans GridFS
   const highResFileId = await uploadToGridFS(
-    highResFile.buffer,
-    highResFile.originalname,
-    highResFile.mimetype,
+    finalHighResBuffer,
+    highResFileOriginalname,
+    highResFileMimetype,
     {
       uploadedBy: req.user._id,
       type: isVideo ? 'photo-video' : 'photo-highres',
+      codec: videoMetadata.codec,
       ...highResInfo,
     }
   );
@@ -66,9 +86,19 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     // Si l'utilisateur fournit lui-même le fichier basse résolution
     lowResBuffer = lowResFile.buffer;
     lowResInfo = await getImageInfo(lowResBuffer);
+  } else if (isVideo) {
+    // Si aucune miniature n'est fournie pour la vidéo, extraire une image
+    try {
+      console.log(`Extracting thumbnail from video ${highResFileOriginalname}...`);
+      lowResBuffer = await createThumbnailFromVideo(finalHighResBuffer, 1);
+      lowResInfo = { width: 640, height: 360 }; // Taille par défaut définie dans la capture
+    } catch (err) {
+      console.error("Failed to extract thumbnail from video:", err);
+      return next(new AppError("Échec de la génération automatique de la miniature vidéo", 500));
+    }
   } else {
     // Génération automatique d'une copie basse résolution à partir de la version haute résolution
-    const lowResResult = await createLowResVersion(highResFile.buffer, {
+    const lowResResult = await createLowResVersion(finalHighResBuffer, {
       maxWidth: 800,
       maxHeight: 600,
       quality: 70,
@@ -90,7 +120,7 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
   // Téléchargement de la version basse résolution filigranée dans GridFS
   const lowResFileId = await uploadToGridFS(
     watermarkedBuffer,
-    `lowres_${highResFile.originalname}`,
+    `lowres_${highResFileOriginalname}`,
     'image/jpeg',
     {
       uploadedBy: req.user._id,
@@ -136,14 +166,16 @@ const uploadPhoto = asyncHandler(async (req, res, next) => {
     tags: finalTags,
     fileInfo: {
       highRes: {
-        filename: highResFile.originalname,
-        contentType: highResFile.mimetype,
-        size: highResFile.size,
+        filename: highResFileOriginalname,
+        contentType: highResFileMimetype,
+        size: finalHighResBuffer.length,
         width: highResInfo.width,
         height: highResInfo.height,
+        duration: videoMetadata.duration,
+        codec: videoMetadata.codec,
       },
       lowRes: {
-        filename: `lowres_${highResFile.originalname}`,
+        filename: `lowres_${highResFileOriginalname}`,
         contentType: 'image/jpeg',
         size: watermarkedBuffer.length,
         width: lowResInfo.width,
@@ -185,8 +217,8 @@ const getAllPhotos = asyncHandler(async (req, res, _next) => {
 
   // Création de l'objet de filtres
   const query = {};
-  // Filtrage facultatif par gouvernorat
-  if (governorate) query.governorate = governorate;
+  // Filtrage facultatif par gouvernorat (insensible à la casse)
+  if (governorate) query.governorate = { $regex: new RegExp('^' + governorate + '$', 'i') };
   // Filtrage facultatif par type de paysage
   if (landscapeType) query.landscapeType = landscapeType;
 
@@ -271,11 +303,27 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
   // File replacement logic
   const highResFile = req.files?.highRes?.[0] || req.file;
   const lowResFile = req.files?.lowRes?.[0];
+  let highResFileOriginalname = highResFile?.originalname;
 
   if (highResFile) {
     const isVideo = highResFile.mimetype.startsWith('video/');
+    let finalHighResBuffer = highResFile.buffer;
+    let videoMetadata = {};
+    let highResFileMimetype = highResFile.mimetype;
 
-    let highResInfo = {};
+    if (isVideo) {
+      const processed = await ensureCompatibleCodec(highResFile.buffer, highResFile.originalname);
+      finalHighResBuffer = processed.buffer;
+      videoMetadata = processed.info;
+
+      if (processed.transcoded) {
+        highResFileMimetype = 'video/mp4';
+        const parsedPath = path.parse(highResFile.originalname);
+        highResFileOriginalname = `${parsedPath.name}.mp4`;
+      }
+    }
+
+    let highResInfo = isVideo ? videoMetadata : {};
     if (!isVideo) {
       highResInfo = await getImageInfo(highResFile.buffer);
     }
@@ -291,12 +339,13 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
 
     // Télécharger le nouveau fichier original dans GridFS
     const highResFileId = await uploadToGridFS(
-      highResFile.buffer,
-      highResFile.originalname,
-      highResFile.mimetype,
+      finalHighResBuffer,
+      highResFileOriginalname,
+      highResFileMimetype,
       {
         uploadedBy: req.user._id,
         type: isVideo ? 'photo-video' : 'photo-highres',
+        codec: videoMetadata.codec,
         ...highResInfo,
       }
     );
@@ -306,23 +355,39 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
 
     if (!updates.fileInfo) updates.fileInfo = photo.fileInfo ? { ...photo.fileInfo } : {};
     updates.fileInfo.highRes = {
-      filename: highResFile.originalname,
-      contentType: highResFile.mimetype,
-      size: highResFile.size,
+      filename: highResFileOriginalname,
+      contentType: highResFileMimetype,
+      size: finalHighResBuffer.length,
       width: highResInfo.width,
       height: highResInfo.height,
+      duration: videoMetadata.duration,
+      codec: videoMetadata.codec,
     };
 
-    // Auto-generate watermarked low-res preview if it's a photo and no custom preview is provided
-    if (!lowResFile && !isVideo) {
-      const lowResResult = await createLowResVersion(highResFile.buffer, {
-        maxWidth: 800,
-        maxHeight: 600,
-        quality: 70,
-        format: 'jpeg',
-      });
-      const lowResBuffer = lowResResult.buffer;
-      const lowResInfo = lowResResult.info;
+    // Auto-generate watermarked low-res preview if no custom preview is provided
+    if (!lowResFile) {
+      let lowResBuffer;
+      let lowResInfo;
+
+      if (isVideo) {
+        try {
+          console.log(`Extracting thumbnail from video ${highResFileOriginalname}...`);
+          lowResBuffer = await createThumbnailFromVideo(finalHighResBuffer, 1);
+          lowResInfo = { width: 640, height: 360 };
+        } catch (err) {
+          console.error("Failed to extract thumbnail from video on update:", err);
+          return next(new AppError("Échec de la génération de la miniature vidéo", 500));
+        }
+      } else {
+        const lowResResult = await createLowResVersion(finalHighResBuffer, {
+          maxWidth: 800,
+          maxHeight: 600,
+          quality: 70,
+          format: 'jpeg',
+        });
+        lowResBuffer = lowResResult.buffer;
+        lowResInfo = lowResResult.info;
+      }
 
       const watermarkText = req.body.attributionText || photo.attributionText || 'Photo prise lors de la tournée de CnBees - Tourisme durable';
       const watermarkedBuffer = await addTiledWatermark(lowResBuffer, watermarkText, {
@@ -339,7 +404,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
 
       const lowResFileId = await uploadToGridFS(
         watermarkedBuffer,
-        `lowres_${highResFile.originalname}`,
+        `lowres_${highResFileOriginalname}`,
         'image/jpeg',
         {
           uploadedBy: req.user._id,
@@ -351,7 +416,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
 
       updates.lowResFileId = lowResFileId;
       updates.fileInfo.lowRes = {
-        filename: `lowres_${highResFile.originalname}`,
+        filename: `lowres_${highResFileOriginalname}`,
         contentType: 'image/jpeg',
         size: watermarkedBuffer.length,
         width: lowResInfo.width,
@@ -379,7 +444,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
 
     const lowResFileId = await uploadToGridFS(
       watermarkedBuffer,
-      `lowres_${highResFile ? highResFile.originalname : photo.fileInfo?.highRes?.filename || 'edit'}.jpg`,
+      `lowres_${highResFile ? highResFileOriginalname : photo.fileInfo?.highRes?.filename || 'edit'}.jpg`,
       'image/jpeg',
       {
         uploadedBy: req.user._id,
@@ -392,7 +457,7 @@ const updatePhoto = asyncHandler(async (req, res, next) => {
     updates.lowResFileId = lowResFileId;
     if (!updates.fileInfo) updates.fileInfo = photo.fileInfo ? { ...photo.fileInfo } : {};
     updates.fileInfo.lowRes = {
-      filename: `lowres_${highResFile ? highResFile.originalname : photo.fileInfo?.highRes?.filename || 'edit'}.jpg`,
+      filename: `lowres_${highResFile ? highResFileOriginalname : photo.fileInfo?.highRes?.filename || 'edit'}.jpg`,
       contentType: 'image/jpeg',
       size: watermarkedBuffer.length,
       width: lowResInfo.width,
